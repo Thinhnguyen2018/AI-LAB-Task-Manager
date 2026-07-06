@@ -181,7 +181,12 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
         if (item.action === 'update' && item.matchedTask) {
           await updateTask(item.matchedTask.id, { status: item.newStatus })
         } else if (item.action === 'create') {
-          await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter: 'Q3', year: 2026 })
+          const now = new Date()
+          const month = now.getMonth() + 1
+          const year = now.getFullYear()
+          const qIdx = Math.ceil(month / 3)
+          const quarter = `Q${qIdx}` as Task['quarter']
+          await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter, year, month })
         }
       }
       await onTasksChange()

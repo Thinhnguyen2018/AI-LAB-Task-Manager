@@ -4,3 +4,7 @@ backend/__pycache__/
 backend/*.pyc
 backend/.env
 *.sh
+task-manager/frontend/node_modules/
+task-manager/frontend/dist/
+task-manager/backend/__pycache__/
+node_modules/

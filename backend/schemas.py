@@ -13,6 +13,7 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     month: Optional[int] = None
     week: Optional[int] = None
+    note_id: Optional[str] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -28,6 +29,7 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     month: Optional[int] = None
     week: Optional[int] = None
+    note_id: Optional[str] = None
 
 class TaskOut(TaskBase):
     id: int

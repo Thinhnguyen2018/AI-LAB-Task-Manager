@@ -10,6 +10,7 @@ export interface Task {
   description?: string
   month?: number
   week?: number
+  note_id?: string
 }
 
 export interface Note {

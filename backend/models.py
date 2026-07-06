@@ -15,6 +15,7 @@ class Task(Base):
     description = Column(Text)
     month = Column(Integer)
     week = Column(Integer)
+    note_id = Column(String(50))
 
 class Note(Base):
     __tablename__ = "notes"

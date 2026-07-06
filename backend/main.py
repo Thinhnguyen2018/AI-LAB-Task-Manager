@@ -13,7 +13,7 @@ Base.metadata.create_all(bind=engine)
 
 # Auto-migrate: add month, week columns if missing; create notes table
 with engine.connect() as conn:
-    for col, coltype in [("month", "INTEGER"), ("week", "INTEGER")]:
+    for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)")]:
         conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {coltype}"))
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS notes (

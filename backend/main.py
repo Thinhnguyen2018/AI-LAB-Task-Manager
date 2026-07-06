@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
+from pydantic import BaseModel
+import os, httpx
 import models, schemas
 from database import engine, get_db, Base
 
@@ -73,6 +75,48 @@ def delete_comment(comment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Comment not found")
     db.delete(db_comment)
     db.commit()
+
+class ExtractRequest(BaseModel):
+    content: str
+
+@app.post("/extract-tasks")
+async def extract_tasks(req: ExtractRequest):
+    api_key = os.getenv("GREENNODE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GREENNODE_API_KEY not configured")
+    payload = {
+        "model": "minimax/minimax-m2.5",
+        "messages": [
+            {
+                "role": "assistant",
+                "content": "You are an AI assistant that extracts actionable tasks from meeting notes. Return ONLY a valid JSON array of strings, one string per task. No markdown, no explanation, just the JSON array.",
+            },
+            {
+                "role": "user",
+                "content": f"Extract all actionable tasks, action items, TODOs, and assignments from these meeting notes. Return a JSON array of task title strings only.\n\n{req.content}",
+            },
+        ],
+        "max_tokens": 1000,
+        "temperature": 0.3,
+        "top_p": 0.95,
+        "presence_penalty": 0,
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1/chat/completions",
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=r.status_code, detail=r.text)
+    data = r.json()
+    text_out = data["choices"][0]["message"]["content"]
+    import re, json as json_lib
+    match = re.search(r'\[[\s\S]*\]', text_out)
+    if not match:
+        raise HTTPException(status_code=500, detail="No task list in AI response")
+    tasks = json_lib.loads(match.group())
+    return {"tasks": [t for t in tasks if isinstance(t, str) and t.strip()]}
 
 @app.post("/seed")
 def seed(db: Session = Depends(get_db)):

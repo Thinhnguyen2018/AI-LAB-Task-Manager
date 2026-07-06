@@ -101,39 +101,15 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     setExtractError(null)
     setExtractedTasks([])
     try {
-      const apiKey = import.meta.env.VITE_GREENNODE_API_KEY
-      const res = await fetch('https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1/chat/completions', {
+      const base = import.meta.env.VITE_API_BASE_URL || '/api'
+      const res = await fetch(`${base}/extract-tasks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'minimax/minimax-m2.5',
-          messages: [
-            {
-              role: 'assistant',
-              content: 'You are an AI assistant that extracts actionable tasks from meeting notes. Return ONLY a valid JSON array of strings, one string per task. No markdown, no explanation, just the JSON array.',
-            },
-            {
-              role: 'user',
-              content: `Extract all actionable tasks, action items, TODOs, and assignments from these meeting notes. Return a JSON array of task title strings only.\n\n${selectedNote.content}`,
-            },
-          ],
-          max_tokens: 1000,
-          temperature: 0.3,
-          top_p: 0.95,
-          presence_penalty: 0,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: selectedNote.content }),
       })
       if (!res.ok) throw new Error(`API error ${res.status}`)
       const data = await res.json()
-      const text = data.choices?.[0]?.message?.content ?? ''
-      // Parse JSON array from response
-      const match = text.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('No task list in response')
-      const parsed: string[] = JSON.parse(match[0])
-      setExtractedTasks(parsed.filter(t => typeof t === 'string' && t.trim()))
+      setExtractedTasks(data.tasks ?? [])
     } catch (e: any) {
       setExtractError(e.message ?? 'Failed to extract tasks')
     } finally {

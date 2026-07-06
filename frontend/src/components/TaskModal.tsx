@@ -95,7 +95,7 @@ export default function TaskModal({ task, onClose, onSave, onDelete, defaultQuar
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={label}>Module</label>
-                <select value={module} onChange={e => setModule(e.target.value)} style={inp}>
+                <select value={module} onChange={e => setModule(e.target.value as any)} style={inp}>
                   {MODULES.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>

@@ -40,6 +40,8 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState('')
   const [extractedTasks, setExtractedTasks] = useState<string[]>([])
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
 
   useEffect(() => {
     if (notes.length > 0 && !selected) {
@@ -93,18 +95,50 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     setSelected(updated[0]?.id ?? null)
   }
 
-  const extractWithAI = () => {
+  const extractWithAI = async () => {
     if (!selectedNote) return
-    const lines = selectedNote.content.split('\n')
-    const tasks: string[] = []
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('- ') && trimmed.length > 2) {
-        const text = trimmed.slice(2).trim()
-        if (text && !text.startsWith('#')) tasks.push(text)
-      }
+    setExtracting(true)
+    setExtractError(null)
+    setExtractedTasks([])
+    try {
+      const apiKey = import.meta.env.VITE_GREENNODE_API_KEY
+      const res = await fetch('https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'minimax/minimax-m2.5',
+          messages: [
+            {
+              role: 'assistant',
+              content: 'You are an AI assistant that extracts actionable tasks from meeting notes. Return ONLY a valid JSON array of strings, one string per task. No markdown, no explanation, just the JSON array.',
+            },
+            {
+              role: 'user',
+              content: `Extract all actionable tasks, action items, TODOs, and assignments from these meeting notes. Return a JSON array of task title strings only.\n\n${selectedNote.content}`,
+            },
+          ],
+          max_tokens: 1000,
+          temperature: 0.3,
+          top_p: 0.95,
+          presence_penalty: 0,
+        }),
+      })
+      if (!res.ok) throw new Error(`API error ${res.status}`)
+      const data = await res.json()
+      const text = data.choices?.[0]?.message?.content ?? ''
+      // Parse JSON array from response
+      const match = text.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('No task list in response')
+      const parsed: string[] = JSON.parse(match[0])
+      setExtractedTasks(parsed.filter(t => typeof t === 'string' && t.trim()))
+    } catch (e: any) {
+      setExtractError(e.message ?? 'Failed to extract tasks')
+    } finally {
+      setExtracting(false)
     }
-    setExtractedTasks(tasks)
   }
 
   const prepareNote = () => {
@@ -185,8 +219,8 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
               <span style={{ fontSize: 16, fontWeight: 700, color: '#111827', flex: 1 }}>{selectedNote.title}</span>
               {!editing && (
                 <>
-                  <button onClick={extractWithAI} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    ✦ Extract with AI
+                  <button onClick={extractWithAI} disabled={extracting} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
+                    {extracting ? '⏳ Extracting...' : '✦ Extract with AI'}
                   </button>
                   <button onClick={prepareNote} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     ✓ Prepare
@@ -226,6 +260,15 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                 )}
               </div>
 
+              {/* Extract error */}
+              {extractError && !extracting && (
+                <div style={{ width: 220, borderLeft: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontSize: 13, textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Extract failed</div>
+                  <div style={{ fontSize: 12 }}>{extractError}</div>
+                </div>
+              )}
+
               {/* Extracted tasks panel */}
               {extractedTasks.length > 0 && (
                 <div style={{ width: 280, borderLeft: '1px solid #e5e7eb', padding: 16, overflowY: 'auto' }}>
@@ -237,7 +280,7 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                   ))}
                 </div>
               )}
-              {extractedTasks.length === 0 && !editing && (
+              {extractedTasks.length === 0 && !editing && !extractError && !extracting && (
                 <div style={{ width: 220, borderLeft: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>TASKS FROM THIS NOTE</div>

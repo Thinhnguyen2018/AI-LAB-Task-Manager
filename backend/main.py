@@ -131,11 +131,26 @@ async def extract_tasks(req: ExtractRequest):
         "messages": [
             {
                 "role": "assistant",
-                "content": "You are an AI assistant that extracts actionable tasks from meeting notes. Return ONLY a valid JSON array of strings, one string per task. No markdown, no explanation, just the JSON array.",
+                "content": (
+                    "You are an expert at extracting actionable work items from Vietnamese and English meeting notes. "
+                    "Return ONLY a valid JSON array of strings. No markdown, no explanation, just the raw JSON array. "
+                    "Be thorough and inclusive — extract EVERY item that implies work to be done, even if implicit."
+                ),
             },
             {
                 "role": "user",
-                "content": f"Extract all actionable tasks, action items, TODOs, and assignments from these meeting notes. Return a JSON array of task title strings only.\n\n{req.content}",
+                "content": (
+                    "Extract ALL actionable tasks from the meeting notes below. Include:\n"
+                    "- Explicit action items and TODOs\n"
+                    "- Features or work being discussed that needs to be done\n"
+                    "- Follow-ups, investigations, decisions pending\n"
+                    "- Any item mentioning a person doing something\n"
+                    "- Any change, migration, or implementation mentioned\n"
+                    "Do NOT skip items just because they are written as descriptions or discussion points — if it implies work, include it.\n"
+                    "Write each task as a short, clear action title (keep Vietnamese if the note is in Vietnamese).\n"
+                    "Return ONLY a JSON array of strings.\n\n"
+                    f"Meeting notes:\n{req.content}"
+                ),
             },
         ],
         "max_tokens": 1000,

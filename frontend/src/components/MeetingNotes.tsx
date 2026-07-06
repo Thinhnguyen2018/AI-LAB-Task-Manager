@@ -30,7 +30,11 @@ function matchScore(a: string, b: string): number {
   const wb = new Set(b.toLowerCase().split(/\W+/).filter(Boolean))
   let common = 0
   wa.forEach(w => { if (wb.has(w)) common++ })
-  return common / Math.max(wa.size, wb.size, 1)
+  // Jaccard similarity
+  const jaccard = common / Math.max(wa.size, wb.size, 1)
+  // Subset similarity: if the shorter one is mostly contained in the longer one
+  const subset = common / Math.min(wa.size, wb.size, 1)
+  return Math.max(jaccard, subset * 0.8)
 }
 
 const STATUS_LABEL: Record<Task['status'], string> = { pending: 'Pending', progress: 'In Progress', done: 'Done' }

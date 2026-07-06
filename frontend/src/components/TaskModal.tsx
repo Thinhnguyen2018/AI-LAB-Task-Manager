@@ -155,15 +155,7 @@ export default function TaskModal({ task, onClose, onSave, onDelete, defaultQuar
                   <label style={label}>Year</label>
                   <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} style={inp} />
                 </div>
-                <div>
-                  <label style={label}>Month (1–12)</label>
-                  <input type="number" min={1} max={12} value={month} onChange={e => setMonth(e.target.value ? Number(e.target.value) : '')} style={inp} placeholder="Optional" />
-                </div>
-                <div>
-                  <label style={label}>Week (1–52)</label>
-                  <input type="number" min={1} max={52} value={week} onChange={e => setWeek(e.target.value ? Number(e.target.value) : '')} style={inp} placeholder="Optional" />
-                </div>
-                <div>
+<div>
                   <label style={label}>Assignee</label>
                   <input value={assignee} onChange={e => setAssignee(e.target.value)} style={inp} placeholder="Name" />
                 </div>

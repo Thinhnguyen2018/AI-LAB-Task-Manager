@@ -28,6 +28,8 @@ export default function App() {
   const [filterModule, setFilterModule] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterQuarter, setFilterQuarter] = useState('')
+  const [filterMonth, setFilterMonth] = useState('')
+  const [filterWeek, setFilterWeek] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
 
   const load = useCallback(async () => {
@@ -65,6 +67,8 @@ export default function App() {
     if (filterModule && t.module !== filterModule) return false
     if (filterStatus && t.status !== filterStatus) return false
     if (filterQuarter && t.quarter !== filterQuarter) return false
+    if (filterMonth && String(t.month) !== filterMonth) return false
+    if (filterWeek && String(t.week) !== filterWeek) return false
     if (filterAssignee && t.assignee !== filterAssignee) return false
     return true
   })
@@ -165,6 +169,10 @@ export default function App() {
             setFilterStatus={setFilterStatus}
             filterQuarter={filterQuarter}
             setFilterQuarter={setFilterQuarter}
+            filterMonth={filterMonth}
+            setFilterMonth={setFilterMonth}
+            filterWeek={filterWeek}
+            setFilterWeek={setFilterWeek}
             filterAssignee={filterAssignee}
             setFilterAssignee={setFilterAssignee}
           />

@@ -96,12 +96,18 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [createStatus, setCreateStatus] = useState<Task['status'] | null>(null)
 
-  // Sync from props (when tasks change externally)
+  // Sync from props: preserve manual drag order, only add new / remove deleted tasks
   useEffect(() => {
-    setColIds({
-      pending:  tasks.filter(t => t.status === 'pending').map(t => t.id),
-      progress: tasks.filter(t => t.status === 'progress').map(t => t.id),
-      done:     tasks.filter(t => t.status === 'done').map(t => t.id),
+    setColIds(prev => {
+      const next = {} as Record<ColKey, number[]>
+      for (const col of COLUMNS) {
+        // Keep existing IDs that still belong to this column
+        const kept = prev[col.key].filter(id => tasks.some(t => t.id === id && t.status === col.key))
+        // Append any newly added tasks not yet tracked
+        const added = tasks.filter(t => t.status === col.key && !prev[col.key].includes(t.id)).map(t => t.id)
+        next[col.key] = [...kept, ...added]
+      }
+      return next
     })
   }, [tasks])
 

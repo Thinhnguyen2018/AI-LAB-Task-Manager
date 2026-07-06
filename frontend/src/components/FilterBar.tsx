@@ -63,10 +63,6 @@ export default function FilterBar({
         <option value="">All Statuses</option>
         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
       </select>
-      <select value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)} style={sel}>
-        <option value="">All Quarters</option>
-        {QUARTERS.map(q => <option key={q} value={q}>{q}</option>)}
-      </select>
       <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={sel}>
         <option value="">All Months</option>
         {MONTHS.map(([num, label]) => <option key={num} value={String(num)}>{label}</option>)}

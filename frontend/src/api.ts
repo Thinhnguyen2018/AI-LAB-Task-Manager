@@ -1,4 +1,4 @@
-import { Task, TaskCreate, TaskUpdate, Comment } from './types'
+import { Task, TaskCreate, TaskUpdate, Comment, Note } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -28,6 +28,17 @@ export const deleteTask = (id: number): Promise<void> =>
 
 export const seedTasks = (): Promise<{ message: string }> =>
   request('/seed', { method: 'POST' })
+
+export const getNotes = (): Promise<Note[]> => request('/notes')
+
+export const createNote = (note: { id: string; title: string; content: string }): Promise<Note> =>
+  request('/notes', { method: 'POST', body: JSON.stringify(note) })
+
+export const updateNote = (id: string, data: { title?: string; content?: string }): Promise<Note> =>
+  request(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+
+export const deleteNote = (id: string): Promise<void> =>
+  request(`/notes/${id}`, { method: 'DELETE' })
 
 export const getComments = (taskId: number): Promise<Comment[]> =>
   request(`/tasks/${taskId}/comments`)

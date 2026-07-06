@@ -12,6 +12,14 @@ export interface Task {
   week?: number
 }
 
+export interface Note {
+  id: string
+  title: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Comment {
   id: number
   task_id: number

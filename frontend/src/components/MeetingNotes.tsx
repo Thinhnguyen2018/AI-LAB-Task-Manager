@@ -1,14 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Task } from '../types'
-import { createTask, updateTask } from '../api'
-
-interface Note {
-  id: string
-  title: string
-  content: string
-  createdAt: string
-  updatedAt: string
-}
+import { useState, useEffect, useCallback } from 'react'
+import { Task, Note } from '../types'
+import { getNotes, createNote, updateNote, deleteNote, createTask, updateTask } from '../api'
 
 interface Props {
   tasks: Task[]
@@ -32,14 +24,6 @@ function getWeekNumber(date: Date): number {
   return Math.ceil((((d as any) - (yearStart as any)) / 86400000 + 1) / 7)
 }
 
-function loadNotes(): Note[] {
-  try { return JSON.parse(localStorage.getItem('meeting-notes') || '[]') } catch { return [] }
-}
-
-function saveNotes(notes: Note[]) {
-  localStorage.setItem('meeting-notes', JSON.stringify(notes))
-}
-
 function matchScore(a: string, b: string): number {
   const wa = new Set(a.toLowerCase().split(/\W+/).filter(Boolean))
   const wb = new Set(b.toLowerCase().split(/\W+/).filter(Boolean))
@@ -56,19 +40,48 @@ const STATUS_COLOR: Record<Task['status'], string> = {
 }
 
 export default function MeetingNotes({ tasks, onTasksChange }: Props) {
-  const [notes, setNotes] = useState<Note[]>(loadNotes)
+  const [notes, setNotes] = useState<Note[]>([])
+  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
   const [items, setItems] = useState<ExtractedItem[]>([])
   const [applying, setApplying] = useState(false)
   const [applyDone, setApplyDone] = useState(false)
 
-  useEffect(() => {
-    if (notes.length > 0 && !selected) setSelected(notes[0].id)
+  const loadNotes = useCallback(async () => {
+    setLoading(true)
+    try {
+      const remote = await getNotes()
+
+      // One-time migration: upload localStorage notes if backend is empty
+      if (remote.length === 0) {
+        try {
+          const local: Note[] = JSON.parse(localStorage.getItem('meeting-notes') || '[]')
+          for (const n of local) {
+            await createNote({ id: n.id, title: n.title, content: n.content })
+          }
+          if (local.length > 0) {
+            localStorage.removeItem('meeting-notes')
+            const migrated = await getNotes()
+            setNotes(migrated)
+            setSelected(migrated[0]?.id ?? null)
+            return
+          }
+        } catch { /* ignore migration errors */ }
+      }
+
+      setNotes(remote)
+      setSelected(prev => prev ?? remote[0]?.id ?? null)
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { loadNotes() }, [loadNotes])
 
   const selectedNote = notes.find(n => n.id === selected) ?? null
 
@@ -81,35 +94,40 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     }
   }, [selected])
 
-  const createNote = () => {
+  const handleCreateNote = async () => {
     const now = new Date()
     const week = getWeekNumber(now)
     const year = now.getFullYear()
     const id = `note-${Date.now()}`
-    const note: Note = {
+    const note = await createNote({
       id,
       title: `Week ${week}, ${year}`,
       content: `## Recap từ tuần trước\n- \n\n---\n\n## Updates tuần này\n\n### 🔵 In Progress – cần report\n- \n\n---\n\n## Items mới / Thảo luận\n- `,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
+    })
+    setNotes(prev => [note, ...prev])
+    setSelected(note.id)
+    setEditing(true)
+    setContent(note.content)
+  }
+
+  const handleSaveNote = async () => {
+    if (!selected) return
+    setSaving(true)
+    try {
+      const updated = await updateNote(selected, { content })
+      setNotes(prev => prev.map(n => n.id === selected ? updated : n))
+      setEditing(false)
+    } finally {
+      setSaving(false)
     }
-    const updated = [note, ...notes]
-    setNotes(updated); saveNotes(updated)
-    setSelected(id); setEditing(true); setContent(note.content)
   }
 
-  const saveNote = () => {
-    const updated = notes.map(n =>
-      n.id === selected ? { ...n, content, updatedAt: new Date().toISOString() } : n
-    )
-    setNotes(updated); saveNotes(updated); setEditing(false)
-  }
-
-  const deleteNote = (id: string) => {
+  const handleDeleteNote = async (id: string) => {
     if (!confirm('Delete this note?')) return
-    const updated = notes.filter(n => n.id !== id)
-    setNotes(updated); saveNotes(updated)
-    setSelected(updated[0]?.id ?? null)
+    await deleteNote(id)
+    const remaining = notes.filter(n => n.id !== id)
+    setNotes(remaining)
+    setSelected(remaining[0]?.id ?? null)
   }
 
   const extractWithAI = async () => {
@@ -126,7 +144,6 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       const data = await res.json()
       const extracted: string[] = data.tasks ?? []
 
-      // Match each extracted task against existing tasks
       const matched: ExtractedItem[] = extracted.map(title => {
         let best: Task | null = null
         let bestScore = 0
@@ -139,7 +156,7 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
           title,
           action: isMatch ? 'update' : 'create',
           matchedTask: isMatch ? best : null,
-          newStatus: isMatch ? (best!.status) : 'pending',
+          newStatus: isMatch ? best!.status : 'pending',
         }
       })
       setItems(matched)
@@ -150,12 +167,11 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     }
   }
 
-  const setItemAction = (i: number, action: Action) => {
+  const setItemAction = (i: number, action: Action) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, action } : it))
-  }
-  const setItemStatus = (i: number, status: Task['status']) => {
+
+  const setItemStatus = (i: number, status: Task['status']) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, newStatus: status } : it))
-  }
 
   const applyAll = async () => {
     setApplying(true)
@@ -175,20 +191,19 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     }
   }
 
-  const prepareNote = () => {
-    if (!selectedNote) return
+  const prepareNote = async () => {
+    if (!selectedNote || !selected) return
     const now = new Date()
     const week = getWeekNumber(now)
-    const prepContent = selectedNote.content + `\n\n---\n*Prepared for Week ${week} standup*`
-    const updated = notes.map(n =>
-      n.id === selected ? { ...n, content: prepContent, updatedAt: now.toISOString() } : n
-    )
-    setNotes(updated); saveNotes(updated); setContent(prepContent)
+    const newContent = selectedNote.content + `\n\n---\n*Prepared for Week ${week} standup*`
+    const updated = await updateNote(selected, { content: newContent })
+    setNotes(prev => prev.map(n => n.id === selected ? updated : n))
+    setContent(newContent)
     alert('Note marked as prepared!')
   }
 
-  const renderContent = (text: string) => {
-    return text.split('\n').map((line, i) => {
+  const renderContent = (text: string) =>
+    text.split('\n').map((line, i) => {
       if (line.startsWith('## ')) return <h2 key={i} style={{ fontSize: 16, fontWeight: 700, margin: '16px 0 6px', color: '#111827' }}>{line.slice(3)}</h2>
       if (line.startsWith('### ')) return <h3 key={i} style={{ fontSize: 14, fontWeight: 600, margin: '12px 0 4px', color: '#374151' }}>{line.slice(4)}</h3>
       if (line === '---') return <hr key={i} style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />
@@ -204,32 +219,32 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       if (line.trim() === '') return <div key={i} style={{ height: 6 }} />
       return <p key={i} style={{ fontSize: 14, color: '#374151', margin: '2px 0', lineHeight: 1.5 }}>{line}</p>
     })
-  }
 
   const activeCount = items.filter(i => i.action !== 'skip').length
 
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      {/* Note list sidebar */}
+      {/* Sidebar */}
       <div style={{ width: 220, background: '#1f2937', borderRight: '1px solid #374151', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid #374151' }}>
-          <button onClick={createNote} style={{ width: '100%', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={handleCreateNote} style={{ width: '100%', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + New
           </button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {notes.map(n => (
+          {loading && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>Loading...</p>}
+          {!loading && notes.map(n => (
             <div key={n.id} onClick={() => { setSelected(n.id); setEditing(false) }}
               style={{ padding: '10px 14px', cursor: 'pointer', background: selected === n.id ? '#374151' : 'none', borderLeft: selected === n.id ? '3px solid #16a34a' : '3px solid transparent' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#e5e7eb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
               <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{n.content.slice(0, 40).replace(/[#\n]/g, ' ').trim()}...</div>
             </div>
           ))}
-          {notes.length === 0 && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>No notes yet</p>}
+          {!loading && notes.length === 0 && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>No notes yet</p>}
         </div>
       </div>
 
-      {/* Main editor area */}
+      {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', minWidth: 0 }}>
         {selectedNote ? (
           <>
@@ -248,23 +263,27 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                   <button onClick={() => setEditing(true)} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
                     Edit
                   </button>
-                  <button onClick={() => deleteNote(selectedNote.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 13, cursor: 'pointer' }}>
+                  <button onClick={() => handleDeleteNote(selectedNote.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 13, cursor: 'pointer' }}>
                     Delete
                   </button>
                 </>
               )}
               {editing && (
                 <>
-                  <button onClick={saveNote} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                  <button onClick={handleSaveNote} disabled={saving}
+                    style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </button>
                   <button onClick={() => { setEditing(false); setContent(selectedNote.content) }}
-                    style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
                 </>
               )}
             </div>
 
             {/* Body */}
             <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-              {/* Note content */}
               <div style={{ flex: 1, padding: '20px 32px', overflowY: 'auto' }}>
                 {editing ? (
                   <textarea value={content} onChange={e => setContent(e.target.value)}
@@ -286,17 +305,13 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
 
               {items.length > 0 && !extractError && (
                 <div style={{ width: 320, borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
-                  {/* Panel header */}
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                       AI Extracted — {items.length} tasks
                     </div>
-                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-                      Review each task then apply
-                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Review each task then apply</div>
                   </div>
 
-                  {/* Task list */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
                     {items.map((item, i) => (
                       <div key={i} style={{
@@ -306,23 +321,13 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                         opacity: item.action === 'skip' ? 0.5 : 1,
                         transition: 'all 0.15s',
                       }}>
-                        {/* Extracted title */}
-                        <div style={{ padding: '8px 10px 4px', fontSize: 13, fontWeight: 600, color: '#111827' }}>
-                          {item.title}
-                        </div>
-
-                        {/* Match badge */}
+                        <div style={{ padding: '8px 10px 4px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{item.title}</div>
                         {item.matchedTask && (
                           <div style={{ padding: '0 10px 6px', fontSize: 11, color: '#6b7280' }}>
                             Matches: <span style={{ color: '#2563eb', fontWeight: 600 }}>{item.matchedTask.title}</span>
-                            {' '}
-                            <span style={{ color: STATUS_COLOR[item.matchedTask.status], fontWeight: 600 }}>
-                              [{STATUS_LABEL[item.matchedTask.status]}]
-                            </span>
+                            {' '}<span style={{ color: STATUS_COLOR[item.matchedTask.status], fontWeight: 600 }}>[{STATUS_LABEL[item.matchedTask.status]}]</span>
                           </div>
                         )}
-
-                        {/* Action toggle */}
                         <div style={{ padding: '4px 10px', display: 'flex', gap: 4 }}>
                           {item.matchedTask && (
                             <button onClick={() => setItemAction(i, 'update')}
@@ -339,19 +344,12 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                             Skip
                           </button>
                         </div>
-
-                        {/* Status picker (if update or create) */}
                         {item.action !== 'skip' && (
                           <div style={{ padding: '4px 10px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 11, color: '#6b7280' }}>Status:</span>
                             {(['pending', 'progress', 'done'] as Task['status'][]).map(s => (
                               <button key={s} onClick={() => setItemStatus(i, s)}
-                                style={{
-                                  padding: '2px 7px', borderRadius: 4, fontSize: 11, cursor: 'pointer', border: 'none',
-                                  background: item.newStatus === s ? STATUS_COLOR[s] : '#f3f4f6',
-                                  color: item.newStatus === s ? '#fff' : '#6b7280',
-                                  fontWeight: item.newStatus === s ? 700 : 400,
-                                }}>
+                                style={{ padding: '2px 7px', borderRadius: 4, fontSize: 11, cursor: 'pointer', border: 'none', background: item.newStatus === s ? STATUS_COLOR[s] : '#f3f4f6', color: item.newStatus === s ? '#fff' : '#6b7280', fontWeight: item.newStatus === s ? 700 : 400 }}>
                                 {STATUS_LABEL[s]}
                               </button>
                             ))}
@@ -361,7 +359,6 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                     ))}
                   </div>
 
-                  {/* Apply footer */}
                   <div style={{ padding: '10px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
                     {applyDone ? (
                       <div style={{ textAlign: 'center', color: '#16a34a', fontSize: 13, fontWeight: 600 }}>✓ Applied successfully!</div>
@@ -379,8 +376,7 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                 <div style={{ width: 220, borderLeft: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>TASKS FROM THIS NOTE</div>
-                  <div style={{ fontSize: 12 }}>0</div>
-                  <div style={{ marginTop: 12, fontSize: 12 }}>Use "Extract with AI" to create tasks from this note</div>
+                  <div style={{ fontSize: 12, marginTop: 12 }}>Use "Extract with AI" to create tasks from this note</div>
                 </div>
               )}
             </div>
@@ -390,7 +386,7 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
               <p>Select a note or create a new one</p>
-              <button onClick={createNote} style={{ marginTop: 12, background: '#16a34a', border: 'none', color: '#fff', padding: '8px 20px', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+              <button onClick={handleCreateNote} style={{ marginTop: 12, background: '#16a34a', border: 'none', color: '#fff', padding: '8px 20px', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
                 + New Note
               </button>
             </div>

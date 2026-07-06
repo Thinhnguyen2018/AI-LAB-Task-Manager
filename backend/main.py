@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.sql import func
 from typing import List
 from pydantic import BaseModel
 import os, httpx
@@ -10,10 +11,19 @@ from database import engine, get_db, Base
 
 Base.metadata.create_all(bind=engine)
 
-# Auto-migrate: add month, week columns if missing
+# Auto-migrate: add month, week columns if missing; create notes table
 with engine.connect() as conn:
     for col, coltype in [("month", "INTEGER"), ("week", "INTEGER")]:
         conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {coltype}"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS notes (
+            id VARCHAR(50) PRIMARY KEY,
+            title VARCHAR(200) NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
     conn.commit()
 
 app = FastAPI()
@@ -74,6 +84,38 @@ def delete_comment(comment_id: int, db: Session = Depends(get_db)):
     if not db_comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     db.delete(db_comment)
+    db.commit()
+
+@app.get("/notes", response_model=List[schemas.NoteOut])
+def get_notes(db: Session = Depends(get_db)):
+    return db.query(models.Note).order_by(models.Note.created_at.desc()).all()
+
+@app.post("/notes", response_model=schemas.NoteOut)
+def create_note(note: schemas.NoteCreate, db: Session = Depends(get_db)):
+    db_note = models.Note(**note.model_dump())
+    db.add(db_note)
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+@app.patch("/notes/{note_id}", response_model=schemas.NoteOut)
+def update_note(note_id: str, note: schemas.NoteUpdate, db: Session = Depends(get_db)):
+    db_note = db.query(models.Note).filter(models.Note.id == note_id).first()
+    if not db_note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    for key, value in note.model_dump(exclude_unset=True).items():
+        setattr(db_note, key, value)
+    db_note.updated_at = func.now()
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+@app.delete("/notes/{note_id}", status_code=204)
+def delete_note(note_id: str, db: Session = Depends(get_db)):
+    db_note = db.query(models.Note).filter(models.Note.id == note_id).first()
+    if not db_note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    db.delete(db_note)
     db.commit()
 
 class ExtractRequest(BaseModel):

@@ -5,6 +5,7 @@ import { Task } from '../types'
 interface Props {
   task: Task
   onClick: () => void
+  isBeingDragged?: boolean
 }
 
 const MODULE_COLORS: Record<string, string> = {
@@ -16,13 +17,14 @@ const MODULE_COLORS: Record<string, string> = {
   Release: '#0891b2',
 }
 
-export default function TaskCard({ task, onClick }: Props) {
+export default function TaskCard({ task, onClick, isBeingDragged }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging || isBeingDragged ? 0.3 : 1,
+    outline: isDragging ? '2px dashed #16a34a' : 'none',
   }
 
   const color = MODULE_COLORS[task.module] ?? '#6b7280'

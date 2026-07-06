@@ -99,15 +99,16 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     const week = getWeekNumber(now)
     const year = now.getFullYear()
     const id = `note-${Date.now()}`
-    const note = await createNote({
-      id,
-      title: `Week ${week}, ${year}`,
-      content: `## Recap từ tuần trước\n- \n\n---\n\n## Updates tuần này\n\n### 🔵 In Progress – cần report\n- \n\n---\n\n## Items mới / Thảo luận\n- `,
-    })
-    setNotes(prev => [note, ...prev])
-    setSelected(note.id)
-    setEditing(true)
-    setContent(note.content)
+    const defaultContent = `## Recap từ tuần trước\n- \n\n---\n\n## Updates tuần này\n\n### 🔵 In Progress – cần report\n- \n\n---\n\n## Items mới / Thảo luận\n- `
+    try {
+      const note = await createNote({ id, title: `Week ${week}, ${year}`, content: defaultContent })
+      setNotes(prev => [note, ...prev])
+      setSelected(note.id)
+      setEditing(true)
+      setContent(note.content)
+    } catch (e: any) {
+      alert(`Failed to create note: ${e.message}`)
+    }
   }
 
   const handleSaveNote = async () => {

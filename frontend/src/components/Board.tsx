@@ -92,6 +92,7 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
     pending: [], progress: [], done: [],
   })
   const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [activeOriginCol, setActiveOriginCol] = useState<ColKey | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [createStatus, setCreateStatus] = useState<Task['status'] | null>(null)
 
@@ -120,7 +121,9 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const handleDragStart = ({ active }: DragStartEvent) => {
-    setActiveTask(tasks.find(t => t.id === active.id) ?? null)
+    const task = tasks.find(t => t.id === active.id) ?? null
+    setActiveTask(task)
+    setActiveOriginCol(task ? task.status as ColKey : null)
   }
 
   const handleDragOver = ({ active, over }: DragOverEvent) => {
@@ -147,26 +150,26 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     const activeId = Number(active.id)
-    const activeTask = tasks.find(t => t.id === activeId)
+    const originCol = activeOriginCol
     setActiveTask(null)
+    setActiveOriginCol(null)
 
-    if (!over || !activeTask) return
+    if (!over || !originCol) return
 
-    const activeCol = findCol(activeId)
-    const overCol   = findCol(over.id)
+    // Destination column: resolve from over.id
+    const overCol = findCol(over.id)
+    if (!overCol) return
 
-    if (!activeCol || !overCol) return
-
-    if (activeCol === overCol) {
+    if (originCol === overCol) {
       // Reorder within same column
-      const items = colIds[activeCol]
+      const items = colIds[overCol]
       const oldIdx = items.indexOf(activeId)
       const newIdx = items.indexOf(Number(over.id))
       if (oldIdx !== newIdx && newIdx !== -1) {
-        setColIds(prev => ({ ...prev, [activeCol]: arrayMove(prev[activeCol], oldIdx, newIdx) }))
+        setColIds(prev => ({ ...prev, [overCol]: arrayMove(prev[overCol], oldIdx, newIdx) }))
       }
     } else {
-      // Cross-column: status already updated in onDragOver, now persist
+      // Cross-column: persist status change
       onUpdate(activeId, { status: overCol })
     }
   }

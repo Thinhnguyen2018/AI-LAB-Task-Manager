@@ -133,7 +133,16 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
     }
     if (view === 'quarter' || view === 'all') {
       const month = Number(col.key)
-      return tasks.filter(t => t.module === module && t.month === month)
+      return tasks.filter(t => {
+        if (t.module !== module) return false
+        if (t.month === month) return true
+        // tasks with no month: show in first month of their quarter
+        if (!t.month && t.quarter) {
+          const qDef = QUARTERS_DEF.find(q => q.key === t.quarter)
+          return qDef?.months[0] === month
+        }
+        return false
+      })
     }
     return []
   }

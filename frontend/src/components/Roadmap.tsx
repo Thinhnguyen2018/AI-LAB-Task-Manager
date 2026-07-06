@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Task, TaskCreate, TaskUpdate } from '../types'
 import TaskModal from './TaskModal'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 interface Props {
   tasks: Task[]
@@ -30,10 +32,37 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
 export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) {
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [creating, setCreating] = useState<{ quarter: string } | null>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
+
+  const exportPNG = async () => {
+    if (!tableRef.current) return
+    const canvas = await html2canvas(tableRef.current, { scale: 2, useCORS: true })
+    const link = document.createElement('a')
+    link.download = 'roadmap.png'
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }
+
+  const exportPDF = async () => {
+    if (!tableRef.current) return
+    const canvas = await html2canvas(tableRef.current, { scale: 2, useCORS: true })
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width / 2, canvas.height / 2] })
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2)
+    pdf.save('roadmap.pdf')
+  }
 
   return (
     <>
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+        <button onClick={exportPNG} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+          ↓ Export PNG
+        </button>
+        <button onClick={exportPDF} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+          ↓ Export PDF
+        </button>
+      </div>
+      <div ref={tableRef} style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
           <thead>
             <tr style={{ background: '#f9fafb' }}>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Task } from '../types'
+import { createTask, updateTask } from '../api'
 
 interface Note {
   id: string
@@ -14,6 +15,15 @@ interface Props {
   onTasksChange: () => void
 }
 
+type Action = 'create' | 'update' | 'skip'
+
+interface ExtractedItem {
+  title: string
+  action: Action
+  matchedTask: Task | null
+  newStatus: Task['status']
+}
+
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   const dayNum = d.getUTCDay() || 7
@@ -23,15 +33,26 @@ function getWeekNumber(date: Date): number {
 }
 
 function loadNotes(): Note[] {
-  try {
-    return JSON.parse(localStorage.getItem('meeting-notes') || '[]')
-  } catch {
-    return []
-  }
+  try { return JSON.parse(localStorage.getItem('meeting-notes') || '[]') } catch { return [] }
 }
 
 function saveNotes(notes: Note[]) {
   localStorage.setItem('meeting-notes', JSON.stringify(notes))
+}
+
+function matchScore(a: string, b: string): number {
+  const wa = new Set(a.toLowerCase().split(/\W+/).filter(Boolean))
+  const wb = new Set(b.toLowerCase().split(/\W+/).filter(Boolean))
+  let common = 0
+  wa.forEach(w => { if (wb.has(w)) common++ })
+  return common / Math.max(wa.size, wb.size, 1)
+}
+
+const STATUS_LABEL: Record<Task['status'], string> = {
+  pending: 'Pending', progress: 'In Progress', done: 'Done',
+}
+const STATUS_COLOR: Record<Task['status'], string> = {
+  pending: '#d97706', progress: '#2563eb', done: '#16a34a',
 }
 
 export default function MeetingNotes({ tasks, onTasksChange }: Props) {
@@ -39,14 +60,14 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState('')
-  const [extractedTasks, setExtractedTasks] = useState<string[]>([])
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
+  const [items, setItems] = useState<ExtractedItem[]>([])
+  const [applying, setApplying] = useState(false)
+  const [applyDone, setApplyDone] = useState(false)
 
   useEffect(() => {
-    if (notes.length > 0 && !selected) {
-      setSelected(notes[0].id)
-    }
+    if (notes.length > 0 && !selected) setSelected(notes[0].id)
   }, [])
 
   const selectedNote = notes.find(n => n.id === selected) ?? null
@@ -54,7 +75,9 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
   useEffect(() => {
     if (selectedNote) {
       setContent(selectedNote.content)
-      setExtractedTasks([])
+      setItems([])
+      setExtractError(null)
+      setApplyDone(false)
     }
   }, [selected])
 
@@ -71,35 +94,27 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       updatedAt: now.toISOString(),
     }
     const updated = [note, ...notes]
-    setNotes(updated)
-    saveNotes(updated)
-    setSelected(id)
-    setEditing(true)
-    setContent(note.content)
+    setNotes(updated); saveNotes(updated)
+    setSelected(id); setEditing(true); setContent(note.content)
   }
 
   const saveNote = () => {
     const updated = notes.map(n =>
       n.id === selected ? { ...n, content, updatedAt: new Date().toISOString() } : n
     )
-    setNotes(updated)
-    saveNotes(updated)
-    setEditing(false)
+    setNotes(updated); saveNotes(updated); setEditing(false)
   }
 
   const deleteNote = (id: string) => {
     if (!confirm('Delete this note?')) return
     const updated = notes.filter(n => n.id !== id)
-    setNotes(updated)
-    saveNotes(updated)
+    setNotes(updated); saveNotes(updated)
     setSelected(updated[0]?.id ?? null)
   }
 
   const extractWithAI = async () => {
     if (!selectedNote) return
-    setExtracting(true)
-    setExtractError(null)
-    setExtractedTasks([])
+    setExtracting(true); setExtractError(null); setItems([]); setApplyDone(false)
     try {
       const base = import.meta.env.VITE_API_BASE_URL || '/api'
       const res = await fetch(`${base}/extract-tasks`, {
@@ -109,7 +124,25 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       })
       if (!res.ok) throw new Error(`API error ${res.status}`)
       const data = await res.json()
-      setExtractedTasks(data.tasks ?? [])
+      const extracted: string[] = data.tasks ?? []
+
+      // Match each extracted task against existing tasks
+      const matched: ExtractedItem[] = extracted.map(title => {
+        let best: Task | null = null
+        let bestScore = 0
+        for (const t of tasks) {
+          const s = matchScore(title, t.title)
+          if (s > bestScore) { bestScore = s; best = t }
+        }
+        const isMatch = bestScore >= 0.4
+        return {
+          title,
+          action: isMatch ? 'update' : 'create',
+          matchedTask: isMatch ? best : null,
+          newStatus: isMatch ? (best!.status) : 'pending',
+        }
+      })
+      setItems(matched)
     } catch (e: any) {
       setExtractError(e.message ?? 'Failed to extract tasks')
     } finally {
@@ -117,19 +150,40 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     }
   }
 
+  const setItemAction = (i: number, action: Action) => {
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, action } : it))
+  }
+  const setItemStatus = (i: number, status: Task['status']) => {
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, newStatus: status } : it))
+  }
+
+  const applyAll = async () => {
+    setApplying(true)
+    try {
+      for (const item of items) {
+        if (item.action === 'skip') continue
+        if (item.action === 'update' && item.matchedTask) {
+          await updateTask(item.matchedTask.id, { status: item.newStatus })
+        } else if (item.action === 'create') {
+          await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter: 'Q3', year: 2026 })
+        }
+      }
+      await onTasksChange()
+      setApplyDone(true)
+    } finally {
+      setApplying(false)
+    }
+  }
+
   const prepareNote = () => {
     if (!selectedNote) return
     const now = new Date()
     const week = getWeekNumber(now)
-    const prepContent = selectedNote.content
-      .replace(/→ done\?/g, '→ done?')
-      + `\n\n---\n*Prepared for Week ${week} standup*`
+    const prepContent = selectedNote.content + `\n\n---\n*Prepared for Week ${week} standup*`
     const updated = notes.map(n =>
       n.id === selected ? { ...n, content: prepContent, updatedAt: now.toISOString() } : n
     )
-    setNotes(updated)
-    saveNotes(updated)
-    setContent(prepContent)
+    setNotes(updated); saveNotes(updated); setContent(prepContent)
     alert('Note marked as prepared!')
   }
 
@@ -139,12 +193,11 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       if (line.startsWith('### ')) return <h3 key={i} style={{ fontSize: 14, fontWeight: 600, margin: '12px 0 4px', color: '#374151' }}>{line.slice(4)}</h3>
       if (line === '---') return <hr key={i} style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />
       if (line.startsWith('- ')) {
-        const text = line.slice(2)
-        const isOverdue = text.includes('OVERDUE')
+        const t = line.slice(2)
         return (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 4, alignItems: 'flex-start' }}>
             <span style={{ color: '#9ca3af', flexShrink: 0, marginTop: 2 }}>–</span>
-            <span style={{ fontSize: 14, color: isOverdue ? '#dc2626' : '#374151', lineHeight: 1.5 }}>{text}</span>
+            <span style={{ fontSize: 14, color: t.includes('OVERDUE') ? '#dc2626' : '#374151', lineHeight: 1.5 }}>{t}</span>
           </div>
         )
       }
@@ -153,40 +206,30 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     })
   }
 
+  const activeCount = items.filter(i => i.action !== 'skip').length
+
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      {/* Note list */}
+      {/* Note list sidebar */}
       <div style={{ width: 220, background: '#1f2937', borderRight: '1px solid #374151', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '12px 14px', borderBottom: '1px solid #374151', display: 'flex', gap: 8 }}>
-          <button
-            onClick={createNote}
-            style={{ flex: 1, background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-          >
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid #374151' }}>
+          <button onClick={createNote} style={{ width: '100%', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + New
           </button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {notes.map(n => (
-            <div
-              key={n.id}
-              onClick={() => { setSelected(n.id); setEditing(false) }}
-              style={{
-                padding: '10px 14px', cursor: 'pointer',
-                background: selected === n.id ? '#374151' : 'none',
-                borderLeft: selected === n.id ? '3px solid #16a34a' : '3px solid transparent',
-              }}
-            >
+            <div key={n.id} onClick={() => { setSelected(n.id); setEditing(false) }}
+              style={{ padding: '10px 14px', cursor: 'pointer', background: selected === n.id ? '#374151' : 'none', borderLeft: selected === n.id ? '3px solid #16a34a' : '3px solid transparent' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#e5e7eb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
               <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{n.content.slice(0, 40).replace(/[#\n]/g, ' ').trim()}...</div>
             </div>
           ))}
-          {notes.length === 0 && (
-            <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>No notes yet</p>
-          )}
+          {notes.length === 0 && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>No notes yet</p>}
         </div>
       </div>
 
-      {/* Editor / Viewer */}
+      {/* Main editor area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', minWidth: 0 }}>
         {selectedNote ? (
           <>
@@ -195,7 +238,8 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
               <span style={{ fontSize: 16, fontWeight: 700, color: '#111827', flex: 1 }}>{selectedNote.title}</span>
               {!editing && (
                 <>
-                  <button onClick={extractWithAI} disabled={extracting} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
+                  <button onClick={extractWithAI} disabled={extracting}
+                    style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
                     {extracting ? '⏳ Extracting...' : '✦ Extract with AI'}
                   </button>
                   <button onClick={prepareNote} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -211,32 +255,27 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
               )}
               {editing && (
                 <>
-                  <button onClick={saveNote} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    Save
-                  </button>
-                  <button onClick={() => { setEditing(false); setContent(selectedNote.content) }} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
-                    Cancel
-                  </button>
+                  <button onClick={saveNote} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                  <button onClick={() => { setEditing(false); setContent(selectedNote.content) }}
+                    style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
                 </>
               )}
             </div>
 
             {/* Body */}
             <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+              {/* Note content */}
               <div style={{ flex: 1, padding: '20px 32px', overflowY: 'auto' }}>
                 {editing ? (
-                  <textarea
-                    value={content}
-                    onChange={e => setContent(e.target.value)}
+                  <textarea value={content} onChange={e => setContent(e.target.value)}
                     style={{ width: '100%', height: '100%', minHeight: 400, border: 'none', outline: 'none', fontSize: 14, lineHeight: 1.6, color: '#374151', fontFamily: 'monospace', resize: 'none' }}
-                    autoFocus
-                  />
+                    autoFocus />
                 ) : (
                   <div>{renderContent(selectedNote.content)}</div>
                 )}
               </div>
 
-              {/* Extract error */}
+              {/* Right panel */}
               {extractError && !extracting && (
                 <div style={{ width: 220, borderLeft: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontSize: 13, textAlign: 'center' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
@@ -245,18 +284,98 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
                 </div>
               )}
 
-              {/* Extracted tasks panel */}
-              {extractedTasks.length > 0 && (
-                <div style={{ width: 280, borderLeft: '1px solid #e5e7eb', padding: 16, overflowY: 'auto' }}>
-                  <h3 style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 12 }}>TASKS FROM THIS NOTE</h3>
-                  {extractedTasks.map((t, i) => (
-                    <div key={i} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '8px 10px', marginBottom: 8, fontSize: 13, color: '#374151' }}>
-                      {t}
+              {items.length > 0 && !extractError && (
+                <div style={{ width: 320, borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+                  {/* Panel header */}
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      AI Extracted — {items.length} tasks
                     </div>
-                  ))}
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                      Review each task then apply
+                    </div>
+                  </div>
+
+                  {/* Task list */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
+                    {items.map((item, i) => (
+                      <div key={i} style={{
+                        marginBottom: 10, borderRadius: 8,
+                        border: item.action === 'skip' ? '1px solid #e5e7eb' : item.action === 'update' ? '1px solid #bfdbfe' : '1px solid #bbf7d0',
+                        background: item.action === 'skip' ? '#f9fafb' : item.action === 'update' ? '#eff6ff' : '#f0fdf4',
+                        opacity: item.action === 'skip' ? 0.5 : 1,
+                        transition: 'all 0.15s',
+                      }}>
+                        {/* Extracted title */}
+                        <div style={{ padding: '8px 10px 4px', fontSize: 13, fontWeight: 600, color: '#111827' }}>
+                          {item.title}
+                        </div>
+
+                        {/* Match badge */}
+                        {item.matchedTask && (
+                          <div style={{ padding: '0 10px 6px', fontSize: 11, color: '#6b7280' }}>
+                            Matches: <span style={{ color: '#2563eb', fontWeight: 600 }}>{item.matchedTask.title}</span>
+                            {' '}
+                            <span style={{ color: STATUS_COLOR[item.matchedTask.status], fontWeight: 600 }}>
+                              [{STATUS_LABEL[item.matchedTask.status]}]
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Action toggle */}
+                        <div style={{ padding: '4px 10px', display: 'flex', gap: 4 }}>
+                          {item.matchedTask && (
+                            <button onClick={() => setItemAction(i, 'update')}
+                              style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'update' ? '#2563eb' : '#e5e7eb', color: item.action === 'update' ? '#fff' : '#6b7280' }}>
+                              Update
+                            </button>
+                          )}
+                          <button onClick={() => setItemAction(i, 'create')}
+                            style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'create' ? '#16a34a' : '#e5e7eb', color: item.action === 'create' ? '#fff' : '#6b7280' }}>
+                            Create
+                          </button>
+                          <button onClick={() => setItemAction(i, 'skip')}
+                            style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'skip' ? '#6b7280' : '#e5e7eb', color: item.action === 'skip' ? '#fff' : '#6b7280' }}>
+                            Skip
+                          </button>
+                        </div>
+
+                        {/* Status picker (if update or create) */}
+                        {item.action !== 'skip' && (
+                          <div style={{ padding: '4px 10px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 11, color: '#6b7280' }}>Status:</span>
+                            {(['pending', 'progress', 'done'] as Task['status'][]).map(s => (
+                              <button key={s} onClick={() => setItemStatus(i, s)}
+                                style={{
+                                  padding: '2px 7px', borderRadius: 4, fontSize: 11, cursor: 'pointer', border: 'none',
+                                  background: item.newStatus === s ? STATUS_COLOR[s] : '#f3f4f6',
+                                  color: item.newStatus === s ? '#fff' : '#6b7280',
+                                  fontWeight: item.newStatus === s ? 700 : 400,
+                                }}>
+                                {STATUS_LABEL[s]}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Apply footer */}
+                  <div style={{ padding: '10px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                    {applyDone ? (
+                      <div style={{ textAlign: 'center', color: '#16a34a', fontSize: 13, fontWeight: 600 }}>✓ Applied successfully!</div>
+                    ) : (
+                      <button onClick={applyAll} disabled={applying || activeCount === 0}
+                        style={{ width: '100%', padding: '8px 0', borderRadius: 6, border: 'none', background: activeCount === 0 ? '#e5e7eb' : '#16a34a', color: activeCount === 0 ? '#9ca3af' : '#fff', fontSize: 13, fontWeight: 600, cursor: activeCount === 0 ? 'default' : 'pointer' }}>
+                        {applying ? 'Applying...' : `Apply ${activeCount} task${activeCount !== 1 ? 's' : ''}`}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
-              {extractedTasks.length === 0 && !editing && !extractError && !extracting && (
+
+              {items.length === 0 && !editing && !extractError && !extracting && (
                 <div style={{ width: 220, borderLeft: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>TASKS FROM THIS NOTE</div>

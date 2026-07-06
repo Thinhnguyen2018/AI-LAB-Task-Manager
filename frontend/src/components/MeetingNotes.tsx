@@ -51,6 +51,10 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
   const [applyDone, setApplyDone] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [showExtractPanel, setShowExtractPanel] = useState(false)
+  // Local fallback: noteId -> taskId[] (until backend note_id column is available)
+  const [localNoteTaskIds, setLocalNoteTaskIds] = useState<Record<string, number[]>>(() => {
+    try { return JSON.parse(localStorage.getItem('note-task-ids') || '{}') } catch { return {} }
+  })
 
   const loadNotes = useCallback(async () => {
     setLoading(true)
@@ -80,8 +84,9 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
 
   const selectedNote = notes.find(n => n.id === selected) ?? null
 
-  // Tasks linked to the currently selected note
-  const linkedTasks = tasks.filter(t => t.note_id === selected)
+  // Tasks linked to this note: backend note_id OR local fallback
+  const localIds = selected ? (localNoteTaskIds[selected] ?? []) : []
+  const linkedTasks = tasks.filter(t => t.note_id === selected || localIds.includes(t.id))
 
   useEffect(() => {
     if (selectedNote) {
@@ -172,16 +177,29 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       const month = now.getMonth() + 1
       const year = now.getFullYear()
       const quarter = `Q${Math.ceil(month / 3)}` as Task['quarter']
+      const appliedIds: number[] = []
+
       for (const item of items) {
         if (item.action === 'skip') continue
         if (item.action === 'update' && item.matchedTask) {
           await updateTask(item.matchedTask.id, { status: item.newStatus, note_id: selected })
+          appliedIds.push(item.matchedTask.id)
         } else if (item.action === 'create') {
-          await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected })
+          const created = await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected })
+          appliedIds.push(created.id)
         }
       }
+
+      // Save local fallback mapping in case backend note_id column isn't available yet
+      if (appliedIds.length > 0) {
+        setLocalNoteTaskIds(prev => {
+          const next = { ...prev, [selected]: [...new Set([...(prev[selected] ?? []), ...appliedIds])] }
+          localStorage.setItem('note-task-ids', JSON.stringify(next))
+          return next
+        })
+      }
+
       await onTasksChange()
-      setApplyDone(true)
       setItems([])
       setShowExtractPanel(false)
     } finally {
@@ -234,7 +252,8 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>Loading...</p>}
           {!loading && notes.map(n => {
-            const count = tasks.filter(t => t.note_id === n.id).length
+            const localNoteIds = localNoteTaskIds[n.id] ?? []
+            const count = tasks.filter(t => t.note_id === n.id || localNoteIds.includes(t.id)).length
             return (
               <div key={n.id} onClick={() => { setSelected(n.id); setEditing(false) }}
                 style={{ padding: '10px 14px', cursor: 'pointer', background: selected === n.id ? '#374151' : 'none', borderLeft: selected === n.id ? '3px solid #16a34a' : '3px solid transparent' }}>

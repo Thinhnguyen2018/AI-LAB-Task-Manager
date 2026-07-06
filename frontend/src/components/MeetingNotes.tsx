@@ -25,14 +25,17 @@ function getWeekNumber(date: Date): number {
   return Math.ceil((((d as any) - (yearStart as any)) / 86400000 + 1) / 7)
 }
 
+function tokenize(s: string): Set<string> {
+  // Unicode-aware split: keeps Vietnamese and other Unicode letters/digits
+  return new Set(s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 1))
+}
+
 function matchScore(a: string, b: string): number {
-  const wa = new Set(a.toLowerCase().split(/\W+/).filter(Boolean))
-  const wb = new Set(b.toLowerCase().split(/\W+/).filter(Boolean))
+  const wa = tokenize(a)
+  const wb = tokenize(b)
   let common = 0
   wa.forEach(w => { if (wb.has(w)) common++ })
-  // Jaccard similarity
   const jaccard = common / Math.max(wa.size, wb.size, 1)
-  // Subset similarity: if the shorter one is mostly contained in the longer one
   const subset = common / Math.min(wa.size, wb.size, 1)
   return Math.max(jaccard, subset * 0.8)
 }

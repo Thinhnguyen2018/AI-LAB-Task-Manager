@@ -41,7 +41,10 @@ const TODAY_QUARTER = QUARTERS.find(q => q.months.includes(TODAY_MONTH))?.key
 export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) {
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [creating, setCreating] = useState<{ quarter: string; month?: number } | null>(null)
+  const [activeQ, setActiveQ] = useState<string | null>(null)
   const tableRef = useRef<HTMLDivElement>(null)
+
+  const visibleQuarters = activeQ ? QUARTERS.filter(q => q.key === activeQ) : QUARTERS
 
   const exportPNG = async () => {
     if (!tableRef.current) return
@@ -75,13 +78,37 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {QUARTERS.map(q => (
+            <button
+              key={q.key}
+              onClick={() => setActiveQ(activeQ === q.key ? null : q.key)}
+              style={{
+                padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: activeQ === q.key ? '#16a34a' : '#f3f4f6',
+                color: activeQ === q.key ? '#fff' : '#374151',
+                border: activeQ === q.key ? 'none' : '1px solid #e5e7eb',
+                transition: 'all 0.15s',
+              }}
+            >
+              {q.key}
+            </button>
+          ))}
+          {activeQ && (
+            <button onClick={() => setActiveQ(null)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 13, cursor: 'pointer', background: 'none', border: '1px solid #e5e7eb', color: '#6b7280' }}>
+              All
+            </button>
+          )}
+        </div>
+      <div style={{ display: 'flex', gap: 8 }}>
         <button onClick={exportPNG} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
           ↓ Export PNG
         </button>
         <button onClick={exportPDF} style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
           ↓ Export PDF
         </button>
+      </div>
       </div>
 
       <div ref={tableRef} style={{ overflowX: 'auto', background: '#fff', borderRadius: 8 }}>
@@ -90,7 +117,7 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
             {/* Quarter row */}
             <tr>
               <th style={{ ...th, width: 110 }}>MODULE</th>
-              {QUARTERS.map(q => (
+              {visibleQuarters.map(q => (
                 <th
                   key={q.key}
                   colSpan={3}
@@ -112,7 +139,7 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
             {/* Month row */}
             <tr>
               <th style={th} />
-              {QUARTERS.flatMap(q =>
+              {visibleQuarters.flatMap(q =>
                 q.labels.map((label, i) => {
                   const month = q.months[i]
                   const isToday = month === TODAY_MONTH
@@ -144,7 +171,7 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
                   <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: MODULE_COLORS[mod], marginRight: 6 }} />
                   {mod}
                 </td>
-                {QUARTERS.flatMap(q =>
+                {visibleQuarters.flatMap(q =>
                   q.months.map(month => {
                     const monthTasks = getTasksForCell(mod, month)
                     const quarterTasks = month === q.months[0] ? getTasksForQuarter(mod, q.key) : []

@@ -167,23 +167,34 @@ export default function App() {
         )}
 
         {/* Content */}
-        <main style={{ flex: 1, padding: tab === 'meeting-notes' ? 0 : 24, overflow: 'auto' }}>
-          {loading && tab !== 'meeting-notes' && <p style={{ color: '#6b7280', textAlign: 'center' }}>Loading...</p>}
-          {error && <p style={{ color: '#dc2626', textAlign: 'center' }}>{error}</p>}
-          {tab === 'board' && !loading && !error && (
-            <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
-          )}
-          {tab === 'roadmap' && !loading && !error && (
-            <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
-          )}
-          {tab === 'milestones' && !loading && !error && (
-            <MilestonesTab tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
-          )}
-          {tab === 'dashboard' && !loading && !error && (
-            <Dashboard tasks={filtered} />
-          )}
-          {tab === 'meeting-notes' && (
-            <MeetingNotes tasks={tasks} onTasksChange={load} />
+        <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {loading && tab !== 'meeting-notes' && <p style={{ color: '#6b7280', textAlign: 'center', padding: 24 }}>Loading...</p>}
+          {error && <p style={{ color: '#dc2626', textAlign: 'center', padding: 24 }}>{error}</p>}
+          {!loading && !error && (
+            <>
+              {/* Keep Board & Roadmap always mounted to preserve drag order across tab switches */}
+              <div style={{ display: tab === 'board' ? 'block' : 'none', padding: 24 }}>
+                <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
+              </div>
+              <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
+                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
+              </div>
+              {tab === 'milestones' && (
+                <div style={{ padding: 24 }}>
+                  <MilestonesTab tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
+                </div>
+              )}
+              {tab === 'dashboard' && (
+                <div style={{ padding: 24 }}>
+                  <Dashboard tasks={filtered} />
+                </div>
+              )}
+              {tab === 'meeting-notes' && (
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <MeetingNotes tasks={tasks} onTasksChange={load} />
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>

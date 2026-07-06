@@ -27,9 +27,6 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [filterModule, setFilterModule] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [filterQuarter, setFilterQuarter] = useState('')
-  const [filterMonth, setFilterMonth] = useState('')
-  const [filterWeek, setFilterWeek] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
 
   const load = useCallback(async () => {
@@ -66,9 +63,6 @@ export default function App() {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
     if (filterModule && t.module !== filterModule) return false
     if (filterStatus && t.status !== filterStatus) return false
-    if (filterQuarter && t.quarter !== filterQuarter) return false
-    if (filterMonth && String(t.month) !== filterMonth) return false
-    if (filterWeek && String(t.week) !== filterWeek) return false
     if (filterAssignee && t.assignee !== filterAssignee) return false
     return true
   })
@@ -158,7 +152,7 @@ export default function App() {
         </header>
 
         {/* Filter bar — only for task tabs */}
-        {tab !== 'meeting-notes' && (
+        {(tab === 'board' || tab === 'roadmap') && (
           <FilterBar
             tasks={tasks}
             search={search}
@@ -167,12 +161,6 @@ export default function App() {
             setFilterModule={setFilterModule}
             filterStatus={filterStatus}
             setFilterStatus={setFilterStatus}
-            filterQuarter={filterQuarter}
-            setFilterQuarter={setFilterQuarter}
-            filterMonth={filterMonth}
-            setFilterMonth={setFilterMonth}
-            filterWeek={filterWeek}
-            setFilterWeek={setFilterWeek}
             filterAssignee={filterAssignee}
             setFilterAssignee={setFilterAssignee}
           />

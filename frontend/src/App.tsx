@@ -367,11 +367,6 @@ export default function App() {
               {tab === 'settings' ? 'Settings' : `${activeProject && tab !== 'knowledge-base' ? `${activeProject.name} — ` : activeProject ? `${activeProject.name} — ` : ''}${NAV.find(n => n.key === tab)?.label ?? tab}`}
             </h1>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button onClick={load} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '4px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
-              Refresh
-            </button>
-          </div>
         </header>
 
         {/* Filter bar — only for task tabs */}

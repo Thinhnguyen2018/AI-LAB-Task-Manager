@@ -387,6 +387,7 @@ export default function App() {
               {tab === 'settings' && (
                 <div style={{ padding: 24, overflowY: 'auto', height: '100%' }}>
                   <Settings
+                    key={activeProjectId}
                     project={activeProject ?? null}
                     projects={projects}
                     tasks={tasks}

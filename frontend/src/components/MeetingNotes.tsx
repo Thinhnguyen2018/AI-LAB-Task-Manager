@@ -82,7 +82,9 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
           }
         } catch { /* ignore */ }
       }
-      const filtered = remote.filter(n => n.project_id === activeProjectId)
+      // If backend hasn't migrated project_id yet, all notes have no project_id — show them all
+      const allHaveNoProject = remote.every(n => n.project_id == null)
+      const filtered = allHaveNoProject ? remote : remote.filter(n => n.project_id === activeProjectId)
       setNotes(filtered)
       setSelected(prev => (filtered.find(n => n.id === prev) ? prev : filtered[0]?.id ?? null))
     } finally {

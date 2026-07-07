@@ -7,3 +7,5 @@ httpx
 python-multipart
 pypdf2
 python-docx
+passlib[bcrypt]
+python-jose[cryptography]

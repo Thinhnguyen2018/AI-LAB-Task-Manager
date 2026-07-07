@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Task, TaskCreate, TaskUpdate, Project } from './types'
-import { getTasks, createTask, updateTask, deleteTask, getProjects, createProject, updateProject, deleteProject } from './api'
+import { getTasks, createTask, updateTask, deleteTask, getProjects, createProject, updateProject, deleteProject, authMe, AuthUser, getMembers } from './api'
 import Board from './components/Board'
 import Roadmap from './components/Roadmap'
 import FilterBar from './components/FilterBar'
@@ -9,6 +9,8 @@ import Dashboard from './components/Dashboard'
 import MeetingNotes from './components/MeetingNotes'
 import Settings from './components/Settings'
 import KnowledgeBase from './components/KnowledgeBase'
+import AuthPage from './components/AuthPage'
+import { AuthToken } from './api'
 
 type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'knowledge-base' | 'settings'
 
@@ -26,6 +28,29 @@ const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Mil
 const PROJECT_COLORS = ['#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string>('member')
+
+  // Check existing token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) { setAuthLoading(false); return }
+    authMe().then(u => setCurrentUser(u)).catch(() => {
+      localStorage.removeItem('auth_token')
+    }).finally(() => setAuthLoading(false))
+  }, [])
+
+  const handleAuth = (res: AuthToken) => {
+    localStorage.setItem('auth_token', res.access_token)
+    setCurrentUser(res.user)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token')
+    setCurrentUser(null)
+  }
+
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,22 +60,6 @@ export default function App() {
   const [filterModule, setFilterModule] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
-
-  // User profile
-  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Thinh')
-  // Modules
-  const [modules, setModules] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('modules') || 'null') || DEFAULT_MODULES } catch { return DEFAULT_MODULES }
-  })
-
-  const handleUserNameChange = (name: string) => {
-    setUserName(name)
-    localStorage.setItem('userName', name)
-  }
-  const handleModulesChange = (mods: string[]) => {
-    setModules(mods)
-    localStorage.setItem('modules', JSON.stringify(mods))
-  }
 
   // Projects
   const [projects, setProjects] = useState<Project[]>([])
@@ -81,13 +90,23 @@ export default function App() {
       if (projs.length > 0) setActiveProjectId(prev => { const id = prev ?? projs[0].id; localStorage.setItem('activeProjectId', String(id)); return id })
       setError(null)
     } catch (e: any) {
+      if (e.message?.includes('401')) { handleLogout(); return }
       setError(e.message)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { if (currentUser) load() }, [load, currentUser])
+
+  // Fetch role for current project
+  useEffect(() => {
+    if (!currentUser || !activeProjectId) return
+    getMembers(activeProjectId).then(members => {
+      const me = members.find(m => m.user_id === currentUser.id)
+      setUserRole(me?.role ?? 'member')
+    }).catch(() => setUserRole('member'))
+  }, [activeProjectId, currentUser])
 
   const handleCreate = async (task: TaskCreate) => {
     const created = await createTask({ ...task, project_id: activeProjectId ?? undefined })
@@ -149,6 +168,15 @@ export default function App() {
 
   const sidebarW = collapsed ? 56 : 220
   const activeProject = projects.find(p => p.id === activeProjectId)
+  const isAdmin = userRole === 'admin'
+
+  if (authLoading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', color: '#6b7280', fontSize: 14 }}>
+      Loading...
+    </div>
+  )
+
+  if (!currentUser) return <AuthPage onAuth={handleAuth} />
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f3f4f6' }}>
@@ -295,14 +323,21 @@ export default function App() {
         </div>
 
         {/* User */}
-        {!collapsed && (
-          <div style={{ padding: '12px 20px', borderTop: '1px solid #1f2937', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, background: '#374151', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
-              {userName.charAt(0).toUpperCase()}
-            </div>
-            <span style={{ color: '#9ca3af', fontSize: 13, whiteSpace: 'nowrap' }}>{userName}</span>
+        <div style={{ padding: collapsed ? '12px 0' : '12px 16px', borderTop: '1px solid #1f2937', display: 'flex', alignItems: 'center', gap: 8, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div style={{ width: 28, height: 28, background: '#374151', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+            {currentUser.name.charAt(0).toUpperCase()}
           </div>
-        )}
+          {!collapsed && (
+            <>
+              <span style={{ color: '#9ca3af', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>{currentUser.name}</span>
+              <button
+                onClick={handleLogout}
+                title="Đăng xuất"
+                style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, flexShrink: 0, padding: '2px 4px' }}
+              >↩</button>
+            </>
+          )}
+        </div>
 
         {/* Collapse button */}
         <button
@@ -392,6 +427,8 @@ export default function App() {
                     project={activeProject ?? null}
                     projects={projects}
                     tasks={tasks}
+                    currentUser={currentUser}
+                    isAdmin={isAdmin}
                     onProjectChange={updated => setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))}
                     onProjectDelete={id => { setProjects(prev => prev.filter(p => p.id !== id)); if (activeProjectId === id) setActiveProjectIdPersisted(null) }}
                     onTasksChange={load}

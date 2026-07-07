@@ -1,13 +1,56 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.sql import func
 from typing import List, Optional
 from pydantic import BaseModel
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
 import os, httpx, time
 import models, schemas
 from database import engine, get_db, Base
+
+# ── Auth helpers ──
+SECRET_KEY = os.getenv("JWT_SECRET", "changeme-dev-secret-key-32chars!!")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 30
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+def hash_password(pw: str) -> str:
+    return pwd_ctx.hash(pw)
+
+def verify_password(pw: str, hashed: str) -> bool:
+    return pwd_ctx.verify(pw, hashed)
+
+def create_token(user_id: int) -> str:
+    exp = datetime.utcnow() + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    return jwt.encode({"sub": str(user_id), "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload["sub"])
+    except (JWTError, KeyError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+def get_member_role(db: Session, project_id: int, user_id: int) -> Optional[str]:
+    m = db.query(models.ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
+    return m.role if m else None
+
+def require_project_admin(db: Session, project_id: int, user: models.User):
+    role = get_member_role(db, project_id, user.id)
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
 
 Base.metadata.create_all(bind=engine)
 
@@ -44,6 +87,25 @@ with engine.connect() as conn:
             updated_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(200) UNIQUE NOT NULL,
+            name VARCHAR(100) NOT NULL,
+            password_hash VARCHAR(200) NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS project_members (
+            id SERIAL PRIMARY KEY,
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            role VARCHAR(20) NOT NULL DEFAULT 'member',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(project_id, user_id)
+        )
+    """))
     conn.commit()
 
 app = FastAPI()
@@ -55,9 +117,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Auth endpoints ──
+
+@app.post("/auth/register", response_model=schemas.TokenOut)
+def register(body: schemas.UserRegister, db: Session = Depends(get_db)):
+    if db.query(models.User).filter(models.User.email == body.email.lower()).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user = models.User(email=body.email.lower(), name=body.name, password_hash=hash_password(body.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    # First user becomes admin of all existing projects
+    existing_projects = db.query(models.Project).all()
+    for p in existing_projects:
+        already = db.query(models.ProjectMember).filter_by(project_id=p.id, user_id=user.id).first()
+        if not already:
+            db.add(models.ProjectMember(project_id=p.id, user_id=user.id, role="admin"))
+    db.commit()
+    return {"access_token": create_token(user.id), "token_type": "bearer", "user": user}
+
+@app.post("/auth/login", response_model=schemas.TokenOut)
+def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == body.email.lower()).first()
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return {"access_token": create_token(user.id), "token_type": "bearer", "user": user}
+
+@app.get("/auth/me", response_model=schemas.UserOut)
+def me(current_user: models.User = Depends(get_current_user)):
+    return current_user
+
+# ── Tasks (require auth) ──
+
 @app.get("/tasks", response_model=List[schemas.TaskOut])
-def get_tasks(db: Session = Depends(get_db)):
-    return db.query(models.Task).all()
+def get_tasks(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    member_project_ids = [m.project_id for m in db.query(models.ProjectMember).filter_by(user_id=current_user.id).all()]
+    return db.query(models.Task).filter(models.Task.project_id.in_(member_project_ids)).all()
 
 @app.post("/tasks", response_model=schemas.TaskOut)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
@@ -214,19 +309,23 @@ async def upload_kb_doc(
     return db_doc
 
 @app.get("/projects", response_model=List[schemas.ProjectOut])
-def get_projects(db: Session = Depends(get_db)):
-    return db.query(models.Project).order_by(models.Project.created_at).all()
+def get_projects(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    member_project_ids = [m.project_id for m in db.query(models.ProjectMember).filter_by(user_id=current_user.id).all()]
+    return db.query(models.Project).filter(models.Project.id.in_(member_project_ids)).order_by(models.Project.created_at).all()
 
 @app.post("/projects", response_model=schemas.ProjectOut)
-def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_project = models.Project(**project.model_dump())
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
+    db.add(models.ProjectMember(project_id=db_project.id, user_id=current_user.id, role="admin"))
+    db.commit()
     return db_project
 
 @app.patch("/projects/{project_id}", response_model=schemas.ProjectOut)
-def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_project_admin(db, project_id, current_user)
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -237,11 +336,63 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
     return db_project
 
 @app.delete("/projects/{project_id}", status_code=204)
-def delete_project(project_id: int, db: Session = Depends(get_db)):
+def delete_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_project_admin(db, project_id, current_user)
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
     db.delete(db_project)
+    db.commit()
+
+# ── Project members ──
+
+@app.get("/projects/{project_id}/members", response_model=List[schemas.MemberOut])
+def get_members(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if not get_member_role(db, project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    members = db.query(models.ProjectMember).filter_by(project_id=project_id).all()
+    result = []
+    for m in members:
+        user = db.query(models.User).filter_by(id=m.user_id).first()
+        result.append(schemas.MemberOut(id=m.id, user_id=m.user_id, project_id=m.project_id, role=m.role, email=user.email, name=user.name, created_at=m.created_at))
+    return result
+
+@app.post("/projects/{project_id}/members", response_model=schemas.MemberOut)
+def invite_member(project_id: int, body: schemas.MemberInvite, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_project_admin(db, project_id, current_user)
+    user = db.query(models.User).filter(models.User.email == body.email.lower()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found. They must register first.")
+    existing = db.query(models.ProjectMember).filter_by(project_id=project_id, user_id=user.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User is already a member")
+    m = models.ProjectMember(project_id=project_id, user_id=user.id, role=body.role)
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return schemas.MemberOut(id=m.id, user_id=m.user_id, project_id=m.project_id, role=m.role, email=user.email, name=user.name, created_at=m.created_at)
+
+@app.patch("/projects/{project_id}/members/{user_id}", response_model=schemas.MemberOut)
+def update_member(project_id: int, user_id: int, body: schemas.MemberUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_project_admin(db, project_id, current_user)
+    m = db.query(models.ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Member not found")
+    m.role = body.role
+    db.commit()
+    db.refresh(m)
+    user = db.query(models.User).filter_by(id=user_id).first()
+    return schemas.MemberOut(id=m.id, user_id=m.user_id, project_id=m.project_id, role=m.role, email=user.email, name=user.name, created_at=m.created_at)
+
+@app.delete("/projects/{project_id}/members/{user_id}", status_code=204)
+def remove_member(project_id: int, user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_project_admin(db, project_id, current_user)
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself")
+    m = db.query(models.ProjectMember).filter_by(project_id=project_id, user_id=user_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Member not found")
+    db.delete(m)
     db.commit()
 
 class ExtractRequest(BaseModel):

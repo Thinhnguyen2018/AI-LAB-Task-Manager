@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Project, Task } from '../types'
-import { updateProject, deleteProject } from '../api'
+import { updateProject, deleteProject, AuthUser } from '../api'
+import Members from './Members'
 
 interface Props {
   project: Project | null
   projects: Project[]
   tasks: Task[]
+  currentUser: AuthUser
+  isAdmin: boolean
   onProjectChange: (p: Project) => void
   onProjectDelete: (id: number) => void
   onTasksChange: () => void
@@ -46,7 +49,7 @@ function Section({ title, description, children, danger }: { title: string; desc
   )
 }
 
-export default function Settings({ project, tasks, onProjectChange, onProjectDelete, onTasksChange, onDeleteProjectTasks }: Props) {
+export default function Settings({ project, tasks, currentUser, isAdmin, onProjectChange, onProjectDelete, onTasksChange, onDeleteProjectTasks }: Props) {
   const [name, setName] = useState(project?.name ?? '')
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0])
   const [savingGeneral, setSavingGeneral] = useState(false)
@@ -192,6 +195,11 @@ export default function Settings({ project, tasks, onProjectChange, onProjectDel
             Add
           </button>
         </div>
+      </Section>
+
+      {/* Members */}
+      <Section title="Members" description="Manage who has access to this project">
+        <Members projectId={project.id} currentUser={currentUser} isAdmin={isAdmin} />
       </Section>
 
       {/* Export */}

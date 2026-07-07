@@ -2,9 +2,17 @@ import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc } from './t
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
+function getToken(): string | null {
+  return localStorage.getItem('auth_token')
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   })
   if (!res.ok) {
@@ -15,6 +23,30 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
+// ── Auth ──
+export interface AuthUser { id: number; email: string; name: string; created_at: string }
+export interface AuthToken { access_token: string; token_type: string; user: AuthUser }
+
+export const authRegister = (email: string, name: string, password: string): Promise<AuthToken> =>
+  request('/auth/register', { method: 'POST', body: JSON.stringify({ email, name, password }) })
+
+export const authLogin = (email: string, password: string): Promise<AuthToken> =>
+  request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+
+export const authMe = (): Promise<AuthUser> => request('/auth/me')
+
+// ── Members ──
+export interface Member { id: number; user_id: number; project_id: number; role: string; email: string; name: string; created_at: string }
+
+export const getMembers = (projectId: number): Promise<Member[]> => request(`/projects/${projectId}/members`)
+export const inviteMember = (projectId: number, email: string, role: string): Promise<Member> =>
+  request(`/projects/${projectId}/members`, { method: 'POST', body: JSON.stringify({ email, role }) })
+export const updateMember = (projectId: number, userId: number, role: string): Promise<Member> =>
+  request(`/projects/${projectId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) })
+export const removeMember = (projectId: number, userId: number): Promise<void> =>
+  request(`/projects/${projectId}/members/${userId}`, { method: 'DELETE' })
+
+// ── Tasks ──
 export const getTasks = (): Promise<Task[]> => request('/tasks')
 
 export const createTask = (task: TaskCreate): Promise<Task> =>

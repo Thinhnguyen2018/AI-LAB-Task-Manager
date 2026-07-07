@@ -20,8 +20,8 @@ interface Props {
 }
 
 const COLUMNS: { key: Task['status']; label: string; color: string; bg: string }[] = [
-  { key: 'pending',  label: 'Pending',     color: '#f59e0b', bg: '#fffbeb' },
-  { key: 'progress', label: 'In Progress', color: '#3b82f6', bg: '#eff6ff' },
+  { key: 'pending',  label: 'Pending',     color: '#f59e0b', bg: '#f0fdf4' },
+  { key: 'progress', label: 'In Progress', color: '#3b82f6', bg: '#f0fdf4' },
   { key: 'done',     label: 'Done',        color: '#16a34a', bg: '#f0fdf4' },
 ]
 
@@ -40,27 +40,61 @@ function Column({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${col.key}` })
 
+  const [addHovered, setAddHovered] = useState(false)
+
   return (
     <div style={{
-      background: isOver ? col.bg : '#f9fafb',
-      borderRadius: 12, padding: 12, minHeight: 400,
-      border: isOver ? `2px dashed ${col.color}` : '2px solid transparent',
-      transition: 'all 0.15s',
-      display: 'flex', flexDirection: 'column',
+      background: isOver ? '#f0fdf4' : '#fafafa',
+      borderRadius: 8,
+      padding: 12,
+      minHeight: 400,
+      transition: 'background 0.15s',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: col.color, display: 'inline-block' }} />
-          <span style={{ fontWeight: 700, fontSize: 14, color: '#374151' }}>{col.label}</span>
-          <span style={{ fontSize: 12, background: '#e5e7eb', borderRadius: 10, padding: '1px 7px', color: '#6b7280' }}>{ids.length}</span>
-        </div>
-        {canEdit && <button onClick={onAddClick} style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 20, cursor: 'pointer', lineHeight: 1 }} title="Add task">+</button>}
+      {/* Column header */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 12,
+      }}>
+        {/* Colored dot */}
+        <span style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: col.color,
+          display: 'inline-block',
+          flexShrink: 0,
+        }} />
+
+        {/* Status label */}
+        <span style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#1a1a1a',
+          flex: 1,
+        }}>
+          {col.label}
+        </span>
+
+        {/* Task count badge */}
+        <span style={{
+          fontSize: 11,
+          fontWeight: 500,
+          color: '#71717a',
+          background: '#f4f4f5',
+          borderRadius: 10,
+          padding: '1px 6px',
+        }}>
+          {ids.length}
+        </span>
       </div>
 
       {/* Cards */}
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 60 }}>
+        <div ref={setNodeRef} style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 60 }}>
           {ids.map(id => {
             const task = allItems[id]
             if (!task) return null
@@ -74,23 +108,38 @@ function Column({
               />
             )
           })}
-          {ids.length === 0 && (
-            <div style={{
-              flex: 1, minHeight: 60, borderRadius: 8, border: `2px dashed ${col.color}30`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#d1d5db', fontSize: 13,
-            }}>
-              Drop here
-            </div>
-          )}
         </div>
       </SortableContext>
+
+      {/* Add task button */}
+      {canEdit && (
+        <button
+          onClick={onAddClick}
+          onMouseEnter={() => setAddHovered(true)}
+          onMouseLeave={() => setAddHovered(false)}
+          style={{
+            marginTop: 8,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 13,
+            color: addHovered ? '#52525b' : '#a1a1aa',
+            textAlign: 'left',
+            padding: '4px 2px',
+            transition: 'color 0.15s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          + Add task
+        </button>
+      )}
     </div>
   )
 }
 
 export default function Board({ tasks, onUpdate, onDelete, onCreate, canEdit = true }: Props) {
-  // Local ordered lists per column
   const [colIds, setColIds] = useState<Record<ColKey, number[]>>({
     pending: [], progress: [], done: [],
   })
@@ -99,14 +148,11 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate, canEdit = t
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [createStatus, setCreateStatus] = useState<Task['status'] | null>(null)
 
-  // Sync from props: preserve manual drag order, only add new / remove deleted tasks
   useEffect(() => {
     setColIds(prev => {
       const next = {} as Record<ColKey, number[]>
       for (const col of COLUMNS) {
-        // Keep existing IDs that still belong to this column
         const kept = prev[col.key].filter(id => tasks.some(t => t.id === id && t.status === col.key))
-        // Append any newly added tasks not yet tracked
         const added = tasks.filter(t => t.status === col.key && !prev[col.key].includes(t.id)).map(t => t.id)
         next[col.key] = [...kept, ...added]
       }
@@ -149,7 +195,7 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate, canEdit = t
       const activeItems = prev[activeCol].filter(id => id !== activeId)
       const overItems = [...prev[overCol]]
       const overIndex = String(overId).startsWith('col-')
-        ? overItems.length          // dropped onto column itself → append
+        ? overItems.length
         : overItems.indexOf(Number(overId))
 
       const newOverItems = [...overItems]
@@ -167,12 +213,10 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate, canEdit = t
 
     if (!over || !originCol) return
 
-    // Destination column: resolve from over.id
     const overCol = findCol(over.id)
     if (!overCol) return
 
     if (originCol === overCol) {
-      // Reorder within same column
       const items = colIds[overCol]
       const oldIdx = items.indexOf(activeId)
       const newIdx = items.indexOf(Number(over.id))
@@ -180,7 +224,6 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate, canEdit = t
         setColIds(prev => ({ ...prev, [overCol]: arrayMove(prev[overCol], oldIdx, newIdx) }))
       }
     } else {
-      // Cross-column: persist status change
       onUpdate(activeId, { status: overCol })
     }
   }

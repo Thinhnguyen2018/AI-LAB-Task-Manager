@@ -98,7 +98,7 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [activeProjectId])
 
   useEffect(() => { loadNotes() }, [loadNotes, activeProjectId])
 

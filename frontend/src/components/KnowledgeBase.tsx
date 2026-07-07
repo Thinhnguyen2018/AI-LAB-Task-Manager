@@ -1,12 +1,20 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { KbDoc } from '../types'
-import { getKbDocs, createKbDoc, updateKbDoc, deleteKbDoc } from '../api'
+import { getKbDocs, updateKbDoc, deleteKbDoc } from '../api'
 
 interface Props {
   activeProjectId: number | null
 }
 
+const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const DEFAULT_CATEGORIES = ['General', 'Architecture', 'Research', 'Runbook', 'Meeting Summary', 'Reference']
+
+const CAT_COLORS: Record<string, string> = {
+  'General': '#6b7280', 'Architecture': '#3b82f6', 'Research': '#8b5cf6',
+  'Runbook': '#f59e0b', 'Meeting Summary': '#16a34a', 'Reference': '#ec4899',
+}
+const getCatColor = (cat: string) => CAT_COLORS[cat] ?? '#6b7280'
 
 export default function KnowledgeBase({ activeProjectId }: Props) {
   const [docs, setDocs] = useState<KbDoc[]>([])
@@ -19,9 +27,10 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
-  const [showNewDoc, setShowNewDoc] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newCategory, setNewCategory] = useState('General')
+  const [uploading, setUploading] = useState(false)
+  const [uploadCategory, setUploadCategory] = useState('General')
+  const [dragOver, setDragOver] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     if (activeProjectId == null) { setDocs([]); setLoading(false); return }
@@ -48,16 +57,38 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
     }
   }, [selected])
 
-  const handleCreate = async () => {
-    if (!newTitle.trim() || activeProjectId == null) return
-    const id = `doc-${Date.now()}`
-    const doc = await createKbDoc({ id, title: newTitle.trim(), content: '', category: newCategory, project_id: activeProjectId })
-    setDocs(prev => [doc, ...prev])
-    setSelected(doc.id)
-    setEditing(true)
-    setShowNewDoc(false)
-    setNewTitle('')
-    setNewCategory('General')
+  const uploadFile = async (file: File) => {
+    if (activeProjectId == null) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('project_id', String(activeProjectId))
+      form.append('category', uploadCategory)
+      const res = await fetch(`${BASE}/kb/upload`, { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }))
+        alert(`Upload failed: ${err.detail}`)
+        return
+      }
+      const doc: KbDoc = await res.json()
+      setDocs(prev => [doc, ...prev])
+      setSelected(doc.id)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    for (const file of Array.from(files)) await uploadFile(file)
+    e.target.value = ''
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false)
+    for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
   }
 
   const handleSave = async () => {
@@ -80,7 +111,7 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
     setSelected(remaining[0]?.id ?? null)
   }
 
-  const categories = Array.from(new Set([...DEFAULT_CATEGORIES, ...docs.map(d => d.category)]))
+  const allCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...docs.map(d => d.category)]))
   const usedCats = Array.from(new Set(docs.map(d => d.category)))
 
   const filteredDocs = docs.filter(d => {
@@ -95,12 +126,6 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
     return acc
   }, {})
 
-  const catColors: Record<string, string> = {
-    'General': '#6b7280', 'Architecture': '#3b82f6', 'Research': '#8b5cf6',
-    'Runbook': '#f59e0b', 'Meeting Summary': '#16a34a', 'Reference': '#ec4899',
-  }
-  const getCatColor = (cat: string) => catColors[cat] ?? '#6b7280'
-
   if (activeProjectId == null) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: '#9ca3af', fontSize: 14 }}>Select a project to view its knowledge base.</div>
   }
@@ -109,7 +134,7 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
     <div style={{ display: 'flex', height: 'calc(100vh - 104px)', gap: 0 }}>
       {/* Sidebar */}
       <div style={{ width: 260, minWidth: 260, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Search + New */}
+        {/* Upload area */}
         <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input
             placeholder="Search docs..."
@@ -117,30 +142,31 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
           />
-          <button
-            onClick={() => setShowNewDoc(v => !v)}
-            style={{ background: '#111827', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, padding: '7px 0', cursor: 'pointer' }}
-          >+ New Document</button>
-          {showNewDoc && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f9fafb', borderRadius: 8, padding: 10 }}>
-              <input
-                autoFocus
-                placeholder="Document title"
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setShowNewDoc(false) }}
-                style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, outline: 'none' }}
-              />
-              <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
-                style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, outline: 'none' }}>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={handleCreate} style={{ flex: 1, background: '#111827', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, padding: '5px 0', cursor: 'pointer', fontWeight: 600 }}>Create</button>
-                <button onClick={() => setShowNewDoc(false)} style={{ flex: 1, background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, padding: '5px 0', cursor: 'pointer' }}>Cancel</button>
-              </div>
+          <select value={uploadCategory} onChange={e => setUploadCategory(e.target.value)}
+            style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', color: '#374151' }}>
+            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {/* Drop zone */}
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragOver ? '#3b82f6' : '#d1d5db'}`,
+              borderRadius: 10, padding: '14px 8px', textAlign: 'center',
+              cursor: uploading ? 'wait' : 'pointer',
+              background: dragOver ? '#eff6ff' : '#fafafa',
+              transition: 'all 0.15s',
+            }}
+          >
+            <div style={{ fontSize: 22, marginBottom: 4 }}>{uploading ? '⏳' : '📁'}</div>
+            <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
+              {uploading ? 'Uploading...' : 'Click or drag & drop'}
             </div>
-          )}
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>PDF · DOCX · TXT · MD</div>
+          </div>
+          <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md" style={{ display: 'none' }} onChange={handleFileInput} />
         </div>
 
         {/* Category filter chips */}
@@ -162,15 +188,16 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
           {loading ? (
             <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: 20 }}>Loading...</p>
           ) : filteredDocs.length === 0 ? (
-            <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: 20 }}>No documents yet</p>
+            <div style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: 20 }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
+              Upload a document to get started
+            </div>
           ) : (
             Object.entries(groupedDocs).map(([cat, catDocs]) => (
               <div key={cat}>
                 <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: getCatColor(cat), letterSpacing: '0.06em', textTransform: 'uppercase' }}>{cat}</div>
                 {catDocs.map(doc => (
-                  <button
-                    key={doc.id}
-                    onClick={() => setSelected(doc.id)}
+                  <button key={doc.id} onClick={() => setSelected(doc.id)}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '8px 16px', border: 'none', cursor: 'pointer',
@@ -179,9 +206,7 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
                     }}
                   >
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                      {new Date(doc.updated_at).toLocaleDateString()}
-                    </div>
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{new Date(doc.updated_at).toLocaleDateString()}</div>
                   </button>
                 ))}
               </div>
@@ -190,27 +215,23 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
         </div>
       </div>
 
-      {/* Editor */}
+      {/* Viewer / Editor */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
         {!selectedDoc ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14, flexDirection: 'column', gap: 12 }}>
-            <span style={{ fontSize: 32 }}>📄</span>
-            <span>Select a document or create a new one</span>
+            <span style={{ fontSize: 40 }}>📄</span>
+            <span>Upload a document or select one from the list</span>
           </div>
         ) : (
           <>
-            {/* Doc toolbar */}
             <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 10 }}>
               {editing ? (
                 <>
-                  <input
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    style={{ flex: 1, fontSize: 18, fontWeight: 700, color: '#111827', border: 'none', outline: 'none', padding: 0 }}
-                  />
+                  <input value={title} onChange={e => setTitle(e.target.value)}
+                    style={{ flex: 1, fontSize: 18, fontWeight: 700, color: '#111827', border: 'none', outline: 'none', padding: 0 }} />
                   <select value={category} onChange={e => setCategory(e.target.value)}
                     style={{ padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, outline: 'none' }}>
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   <button onClick={handleSave} disabled={saving}
                     style={{ padding: '6px 16px', background: '#16a34a', border: 'none', borderRadius: 7, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -242,25 +263,18 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
               )}
             </div>
 
-            {/* Content */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               {editing ? (
-                <textarea
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  placeholder="Write your document here... (Markdown supported)"
-                  style={{ flex: 1, padding: '24px', border: 'none', outline: 'none', fontSize: 14, lineHeight: 1.7, resize: 'none', fontFamily: '"SF Mono", "Fira Code", monospace', color: '#374151', background: '#fafafa' }}
-                />
+                <textarea value={content} onChange={e => setContent(e.target.value)}
+                  style={{ flex: 1, padding: 24, border: 'none', outline: 'none', fontSize: 14, lineHeight: 1.7, resize: 'none', fontFamily: '"SF Mono","Fira Code",monospace', color: '#374151', background: '#fafafa' }} />
               ) : (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
                   {selectedDoc.content ? (
                     <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8, color: '#374151', fontFamily: 'inherit' }}>
                       {selectedDoc.content}
                     </pre>
                   ) : (
-                    <div style={{ color: '#9ca3af', fontSize: 14, textAlign: 'center', marginTop: 60 }}>
-                      No content yet. Click <b>Edit</b> to start writing.
-                    </div>
+                    <div style={{ color: '#9ca3af', fontSize: 14, textAlign: 'center', marginTop: 60 }}>No content. Click Edit to write.</div>
                   )}
                 </div>
               )}

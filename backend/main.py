@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.sql import func
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
-import os, httpx
+import os, httpx, time
 import models, schemas
 from database import engine, get_db, Base
 
@@ -172,6 +172,46 @@ def delete_kb_doc(doc_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doc not found")
     db.delete(db_doc)
     db.commit()
+
+@app.post("/kb/upload", response_model=schemas.KbDocOut)
+async def upload_kb_doc(
+    file: UploadFile = File(...),
+    project_id: Optional[int] = Form(None),
+    category: str = Form("General"),
+    db: Session = Depends(get_db)
+):
+    raw = await file.read()
+    filename = file.filename or "document"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext in ("txt", "md"):
+        content = raw.decode("utf-8", errors="replace")
+    elif ext == "pdf":
+        try:
+            import io
+            from PyPDF2 import PdfReader
+            reader = PdfReader(io.BytesIO(raw))
+            content = "\n\n".join(p.extract_text() or "" for p in reader.pages).strip()
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Could not parse PDF: {e}")
+    elif ext in ("docx",):
+        try:
+            import io
+            from docx import Document
+            doc = Document(io.BytesIO(raw))
+            content = "\n".join(p.text for p in doc.paragraphs)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Could not parse DOCX: {e}")
+    else:
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}. Supported: .txt, .md, .pdf, .docx")
+
+    title = filename.rsplit(".", 1)[0] if "." in filename else filename
+    doc_id = f"doc-{int(time.time() * 1000)}"
+    db_doc = models.KbDoc(id=doc_id, title=title, content=content, category=category, project_id=project_id)
+    db.add(db_doc)
+    db.commit()
+    db.refresh(db_doc)
+    return db_doc
 
 @app.get("/projects", response_model=List[schemas.ProjectOut])
 def get_projects(db: Session = Depends(get_db)):

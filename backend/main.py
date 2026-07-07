@@ -15,6 +15,7 @@ Base.metadata.create_all(bind=engine)
 with engine.connect() as conn:
     for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)"), ("project_id", "INTEGER")]:
         conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {coltype}"))
+    conn.execute(text("ALTER TABLE notes ADD COLUMN IF NOT EXISTS project_id INTEGER"))
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS notes (
             id VARCHAR(50) PRIMARY KEY,

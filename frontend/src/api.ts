@@ -31,10 +31,10 @@ export const seedTasks = (): Promise<{ message: string }> =>
 
 export const getNotes = (): Promise<Note[]> => request('/notes')
 
-export const createNote = (note: { id: string; title: string; content: string }): Promise<Note> =>
+export const createNote = (note: { id: string; title: string; content: string; project_id?: number }): Promise<Note> =>
   request('/notes', { method: 'POST', body: JSON.stringify(note) })
 
-export const updateNote = (id: string, data: { title?: string; content?: string }): Promise<Note> =>
+export const updateNote = (id: string, data: { title?: string; content?: string; project_id?: number }): Promise<Note> =>
   request(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 
 export const deleteNote = (id: string): Promise<void> =>

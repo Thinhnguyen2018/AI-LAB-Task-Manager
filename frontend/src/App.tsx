@@ -364,7 +364,7 @@ export default function App() {
               )}
               {tab === 'meeting-notes' && (
                 <div style={{ flex: 1, minHeight: 0 }}>
-                  <MeetingNotes tasks={tasks} onTasksChange={load} />
+                  <MeetingNotes tasks={tasks} onTasksChange={load} activeProjectId={activeProjectId} />
                 </div>
               )}
               {tab === 'settings' && (

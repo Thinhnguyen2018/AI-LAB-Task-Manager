@@ -6,6 +6,7 @@ import TaskModal from './TaskModal'
 interface Props {
   tasks: Task[]
   onTasksChange: () => void
+  activeProjectId: number | null
 }
 
 type Action = 'create' | 'update' | 'skip'
@@ -44,7 +45,7 @@ const STATUS_LABEL: Record<Task['status'], string> = { pending: 'Pending', progr
 const STATUS_COLOR: Record<Task['status'], string> = { pending: '#d97706', progress: '#2563eb', done: '#16a34a' }
 const STATUS_BG: Record<Task['status'], string> = { pending: '#fef3c7', progress: '#dbeafe', done: '#dcfce7' }
 
-export default function MeetingNotes({ tasks, onTasksChange }: Props) {
+export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: Props) {
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
@@ -70,24 +71,26 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
       if (remote.length === 0) {
         try {
           const local: Note[] = JSON.parse(localStorage.getItem('meeting-notes') || '[]')
-          for (const n of local) await createNote({ id: n.id, title: n.title, content: n.content })
+          for (const n of local) await createNote({ id: n.id, title: n.title, content: n.content, project_id: activeProjectId ?? undefined })
           if (local.length > 0) {
             localStorage.removeItem('meeting-notes')
             const migrated = await getNotes()
-            setNotes(migrated)
-            setSelected(migrated[0]?.id ?? null)
+            const filtered = migrated.filter(n => n.project_id === activeProjectId || n.project_id == null)
+            setNotes(filtered)
+            setSelected(filtered[0]?.id ?? null)
             return
           }
         } catch { /* ignore */ }
       }
-      setNotes(remote)
-      setSelected(prev => prev ?? remote[0]?.id ?? null)
+      const filtered = remote.filter(n => n.project_id === activeProjectId)
+      setNotes(filtered)
+      setSelected(prev => (filtered.find(n => n.id === prev) ? prev : filtered[0]?.id ?? null))
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { loadNotes() }, [loadNotes])
+  useEffect(() => { loadNotes() }, [loadNotes, activeProjectId])
 
   const selectedNote = notes.find(n => n.id === selected) ?? null
 
@@ -111,7 +114,7 @@ export default function MeetingNotes({ tasks, onTasksChange }: Props) {
     const id = `note-${Date.now()}`
     const defaultContent = `## Recap từ tuần trước\n- \n\n---\n\n## Updates tuần này\n\n### 🔵 In Progress – cần report\n- \n\n---\n\n## Items mới / Thảo luận\n- `
     try {
-      const note = await createNote({ id, title: `Week ${week}, ${now.getFullYear()}`, content: defaultContent })
+      const note = await createNote({ id, title: `Week ${week}, ${now.getFullYear()}`, content: defaultContent, project_id: activeProjectId ?? undefined })
       setNotes(prev => [note, ...prev])
       setSelected(note.id)
       setEditing(true)

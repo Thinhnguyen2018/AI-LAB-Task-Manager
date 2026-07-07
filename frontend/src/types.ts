@@ -25,6 +25,7 @@ export interface Note {
   id: string
   title: string
   content: string
+  project_id?: number
   created_at: string
   updated_at: string
 }

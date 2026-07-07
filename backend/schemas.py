@@ -56,15 +56,18 @@ class NoteCreate(BaseModel):
     id: str
     title: str
     content: str = ""
+    project_id: Optional[int] = None
 
 class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    project_id: Optional[int] = None
 
 class NoteOut(BaseModel):
     id: str
     title: str
     content: str
+    project_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

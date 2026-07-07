@@ -377,7 +377,7 @@ export default function App() {
               )}
               {tab === 'meeting-notes' && (
                 <div style={{ flex: 1, minHeight: 0 }}>
-                  <MeetingNotes tasks={tasks} onTasksChange={load} activeProjectId={activeProjectId} />
+                  <MeetingNotes tasks={projectTasks} onTasksChange={load} activeProjectId={activeProjectId} />
                 </div>
               )}
               {tab === 'knowledge-base' && (

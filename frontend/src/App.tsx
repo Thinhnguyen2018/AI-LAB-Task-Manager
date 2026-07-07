@@ -178,6 +178,39 @@ export default function App() {
 
   if (!currentUser) return <AuthPage onAuth={handleAuth} />
 
+  if (!loading && projects.length === 0) return (
+    <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '48px 56px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', maxWidth: 440, width: '90vw', textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: '#111827' }}>Bạn chưa có project nào</h2>
+        <p style={{ margin: '0 0 28px', fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>
+          Tạo project mới hoặc nhờ admin của workspace invite bạn vào project hiện có.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={async () => {
+              const name = prompt('Tên project:')
+              if (!name?.trim()) return
+              const { createProject } = await import('./api')
+              const p = await createProject(name.trim(), '#16a34a')
+              setProjects([p])
+              setActiveProjectIdPersisted(p.id)
+            }}
+            style={{ padding: '11px 0', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+          >
+            + Tạo project mới
+          </button>
+          <button
+            onClick={handleLogout}
+            style={{ padding: '10px 0', background: 'none', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 14, color: '#6b7280', cursor: 'pointer' }}
+          >
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f3f4f6' }}>
       {/* Sidebar */}

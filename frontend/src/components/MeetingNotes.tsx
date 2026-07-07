@@ -215,7 +215,8 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
           await updateTask(item.matchedTask.id, { status: item.newStatus, note_id: selected })
           appliedIds.push(item.matchedTask.id)
         } else if (item.action === 'create') {
-          const created = await createTask({ title: item.title, description: item.description || undefined, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected, assignee: item.assignee || undefined, project_id: activeProjectId ?? undefined })
+          const defaultModule = (() => { try { if (activeProjectId) { const s = localStorage.getItem(`modules-${activeProjectId}`); if (s) { const m = JSON.parse(s); if (m.length) return m[0] } } } catch {} return 'GreenRAG' })()
+          const created = await createTask({ title: item.title, description: item.description || undefined, module: defaultModule, status: item.newStatus, quarter, year, month, note_id: selected, assignee: item.assignee || undefined, project_id: activeProjectId ?? undefined })
           appliedIds.push(created.id)
         }
       }

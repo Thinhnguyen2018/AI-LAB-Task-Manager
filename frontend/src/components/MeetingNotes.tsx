@@ -82,9 +82,17 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
           }
         } catch { /* ignore */ }
       }
-      // If backend hasn't migrated project_id yet, all notes have no project_id — show them all
-      const allHaveNoProject = remote.every(n => n.project_id == null)
-      const filtered = allHaveNoProject ? remote : remote.filter(n => n.project_id === activeProjectId)
+      // Sync backend project_id into localStorage map when available
+      const localMap: Record<string, number> = (() => { try { return JSON.parse(localStorage.getItem('note-project-map') || '{}') } catch { return {} } })()
+      let mapUpdated = false
+      remote.forEach(n => { if (n.project_id != null && localMap[n.id] !== n.project_id) { localMap[n.id] = n.project_id; mapUpdated = true } })
+
+      if (mapUpdated) localStorage.setItem('note-project-map', JSON.stringify(localMap))
+
+      const filtered = remote.filter(n => {
+        const pid = n.project_id ?? localMap[n.id] ?? null
+        return pid === activeProjectId
+      })
       setNotes(filtered)
       setSelected(prev => (filtered.find(n => n.id === prev) ? prev : filtered[0]?.id ?? null))
     } finally {
@@ -117,6 +125,11 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
     const defaultContent = `## Recap từ tuần trước\n- \n\n---\n\n## Updates tuần này\n\n### 🔵 In Progress – cần report\n- \n\n---\n\n## Items mới / Thảo luận\n- `
     try {
       const note = await createNote({ id, title: `Week ${week}, ${now.getFullYear()}`, content: defaultContent, project_id: activeProjectId ?? undefined })
+      if (activeProjectId != null) {
+        const localMap = (() => { try { return JSON.parse(localStorage.getItem('note-project-map') || '{}') } catch { return {} } })()
+        localMap[note.id] = activeProjectId
+        localStorage.setItem('note-project-map', JSON.stringify(localMap))
+      }
       setNotes(prev => [note, ...prev])
       setSelected(note.id)
       setEditing(true)

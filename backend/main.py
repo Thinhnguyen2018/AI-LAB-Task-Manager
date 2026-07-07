@@ -259,7 +259,8 @@ async def extract_tasks(req: ExtractRequest):
                 "role": "assistant",
                 "content": (
                     "You are an expert at extracting actionable work items from Vietnamese and English meeting notes. "
-                    "Return ONLY a valid JSON array of strings. No markdown, no explanation, just the raw JSON array. "
+                    "Return ONLY a valid JSON array of objects with keys 'title' and 'assignee'. "
+                    "No markdown, no explanation, just the raw JSON array. "
                     "Be thorough and inclusive — extract EVERY item that implies work to be done, even if implicit."
                 ),
             },
@@ -274,12 +275,14 @@ async def extract_tasks(req: ExtractRequest):
                     "- Any change, migration, or implementation mentioned\n"
                     "Do NOT skip items just because they are written as descriptions or discussion points — if it implies work, include it.\n"
                     "Write each task as a short, clear action title (keep Vietnamese if the note is in Vietnamese).\n"
-                    "Return ONLY a JSON array of strings.\n\n"
+                    "For 'assignee': extract the person or team name mentioned for that task (in parentheses, after a dash, or implied by context). "
+                    "If no assignee is mentioned, use empty string ''.\n"
+                    "Return ONLY a JSON array of objects: [{\"title\": \"...\", \"assignee\": \"...\"}, ...]\n\n"
                     f"Meeting notes:\n{req.content}"
                 ),
             },
         ],
-        "max_tokens": 1000,
+        "max_tokens": 1500,
         "temperature": 0.3,
         "top_p": 0.95,
         "presence_penalty": 0,
@@ -298,8 +301,14 @@ async def extract_tasks(req: ExtractRequest):
     match = re.search(r'\[[\s\S]*\]', text_out)
     if not match:
         raise HTTPException(status_code=500, detail="No task list in AI response")
-    tasks = json_lib.loads(match.group())
-    return {"tasks": [t for t in tasks if isinstance(t, str) and t.strip()]}
+    raw = json_lib.loads(match.group())
+    tasks = []
+    for t in raw:
+        if isinstance(t, str):
+            tasks.append({"title": t.strip(), "assignee": ""})
+        elif isinstance(t, dict) and t.get("title", "").strip():
+            tasks.append({"title": t["title"].strip(), "assignee": (t.get("assignee") or "").strip()})
+    return {"tasks": tasks}
 
 @app.post("/seed")
 def seed(db: Session = Depends(get_db)):

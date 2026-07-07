@@ -13,6 +13,7 @@ type Action = 'create' | 'update' | 'skip'
 
 interface ExtractedItem {
   title: string
+  assignee: string
   action: Action
   matchedTask: Task | null
   newStatus: Task['status']
@@ -171,15 +172,15 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
       })
       if (!res.ok) throw new Error(`API error ${res.status}`)
       const data = await res.json()
-      const extracted: string[] = data.tasks ?? []
-      const matched: ExtractedItem[] = extracted.map(title => {
+      const extracted: { title: string; assignee: string }[] = data.tasks ?? []
+      const matched: ExtractedItem[] = extracted.map(({ title, assignee }) => {
         let best: Task | null = null, bestScore = 0
         for (const t of tasks) {
           const s = matchScore(title, t.title)
           if (s > bestScore) { bestScore = s; best = t }
         }
         const isMatch = bestScore >= 0.4
-        return { title, action: isMatch ? 'update' : 'create', matchedTask: isMatch ? best : null, newStatus: isMatch ? best!.status : 'pending' }
+        return { title, assignee, action: isMatch ? 'update' : 'create', matchedTask: isMatch ? best : null, newStatus: isMatch ? best!.status : 'pending' }
       })
       setItems(matched)
     } catch (e: any) {
@@ -210,7 +211,7 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
           await updateTask(item.matchedTask.id, { status: item.newStatus, note_id: selected })
           appliedIds.push(item.matchedTask.id)
         } else if (item.action === 'create') {
-          const created = await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected })
+          const created = await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected, assignee: item.assignee || undefined })
           appliedIds.push(created.id)
         }
       }
@@ -405,6 +406,12 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
                         {items.map((item, i) => (
                           <div key={i} style={{ marginBottom: 10, borderRadius: 8, border: item.action === 'skip' ? '1px solid #e5e7eb' : item.action === 'update' ? '1px solid #bfdbfe' : '1px solid #bbf7d0', background: item.action === 'skip' ? '#f9fafb' : item.action === 'update' ? '#eff6ff' : '#f0fdf4', opacity: item.action === 'skip' ? 0.5 : 1, transition: 'all 0.15s' }}>
                             <div style={{ padding: '8px 10px 4px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{item.title}</div>
+                            {item.assignee && (
+                              <div style={{ padding: '0 10px 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ fontSize: 10, color: '#6b7280' }}>Assignee:</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', background: '#f3f4f6', borderRadius: 10, padding: '1px 8px' }}>{item.assignee}</span>
+                              </div>
+                            )}
                             {item.matchedTask && (
                               <div style={{ padding: '0 10px 6px', fontSize: 11, color: '#6b7280' }}>
                                 Matches: <span style={{ color: '#2563eb', fontWeight: 600 }}>{item.matchedTask.title}</span>{' '}

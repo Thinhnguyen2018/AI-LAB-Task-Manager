@@ -11,6 +11,7 @@ interface Props {
   onDelete: (id: number) => Promise<void>
   onCreate: (task: TaskCreate) => Promise<void>
   activeProjectId?: number | null
+  canEdit?: boolean
 }
 
 const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
@@ -80,7 +81,7 @@ const QUARTERS_DEF = [
 ]
 const ALL_MONTHS = QUARTERS_DEF.flatMap(q => q.months.map((m, i) => ({ month: m, label: q.labels[i], quarter: q.key })))
 
-export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId }: Props) {
+export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId, canEdit = true }: Props) {
   const MODULES = getProjectModules(activeProjectId)
   const [view, setView] = useState<ViewMode>('all')
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -303,18 +304,18 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
                   return (
                     <td
                       key={col.key}
-                      onDragOver={e => { e.preventDefault(); setDragOver(cellKey) }}
-                      onDragLeave={() => setDragOver(prev => prev === cellKey ? null : prev)}
-                      onDrop={() => handleDrop(mod, col)}
+                      onDragOver={canEdit ? (e => { e.preventDefault(); setDragOver(cellKey) }) : undefined}
+                      onDragLeave={canEdit ? (() => setDragOver(prev => prev === cellKey ? null : prev)) : undefined}
+                      onDrop={canEdit ? (() => handleDrop(mod, col)) : undefined}
                       style={{
                         padding: colTasks.length ? 4 : 8,
                         border: isDropTarget ? '2px dashed #16a34a' : '1px solid #e5e7eb',
                         verticalAlign: 'top',
                         background: isDropTarget ? '#f0fdf4' : col.isToday ? '#f0fdf4' : '#fff',
-                        cursor: 'pointer',
+                        cursor: canEdit ? 'pointer' : 'default',
                         transition: 'background 0.1s',
                       }}
-                      onClick={() => colTasks.length === 0 && !dragTaskId && setCreating({ month: Number(col.key) })}
+                      onClick={() => canEdit && colTasks.length === 0 && !dragTaskId && setCreating({ month: Number(col.key) })}
                     >
                       {colTasks.length === 0 ? (
                         <div style={{ color: '#e5e7eb', fontSize: 16, textAlign: 'center' }}>—</div>
@@ -323,14 +324,14 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
                           {colTasks.map(task => (
                             <div
                               key={task.id}
-                              draggable
-                              onDragStart={e => { setDragTaskId(task.id); e.dataTransfer.effectAllowed = 'move' }}
-                              onDragEnd={() => { setDragTaskId(null); setDragOver(null) }}
+                              draggable={canEdit}
+                              onDragStart={canEdit ? (e => { setDragTaskId(task.id); e.dataTransfer.effectAllowed = 'move' }) : undefined}
+                              onDragEnd={canEdit ? (() => { setDragTaskId(null); setDragOver(null) }) : undefined}
                               onClick={e => { e.stopPropagation(); setEditTask(task) }}
                               style={{
                                 ...STATUS_STYLE[task.status],
                                 borderRadius: 5, padding: '3px 6px', fontSize: 11,
-                                cursor: 'grab', lineHeight: 1.4,
+                                cursor: canEdit ? 'grab' : 'pointer', lineHeight: 1.4,
                                 opacity: dragTaskId === task.id ? 0.4 : 1,
                                 transition: 'opacity 0.15s',
                               }}
@@ -355,7 +356,7 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
           onSave={data => onUpdate(editTask.id, data as TaskUpdate)}
           onDelete={() => onDelete(editTask.id)} />
       )}
-      {creating && (
+      {canEdit && creating && (
         <TaskModal defaultQuarter={`Q${TODAY_QUARTER_IDX}`} onClose={() => setCreating(null)}
           onSave={data => onCreate(data as TaskCreate)} />
       )}

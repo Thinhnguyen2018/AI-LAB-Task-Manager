@@ -16,6 +16,7 @@ interface Props {
   onUpdate: (id: number, task: TaskUpdate) => Promise<void>
   onDelete: (id: number) => Promise<void>
   onCreate: (task: TaskCreate) => Promise<void>
+  canEdit?: boolean
 }
 
 const COLUMNS: { key: Task['status']; label: string; color: string; bg: string }[] = [
@@ -27,7 +28,7 @@ const COLUMNS: { key: Task['status']; label: string; color: string; bg: string }
 type ColKey = Task['status']
 
 function Column({
-  col, ids, allItems, activeId, onAddClick, onCardClick,
+  col, ids, allItems, activeId, onAddClick, onCardClick, canEdit,
 }: {
   col: typeof COLUMNS[number]
   ids: number[]
@@ -35,6 +36,7 @@ function Column({
   activeId: number | null
   onAddClick: () => void
   onCardClick: (t: Task) => void
+  canEdit: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${col.key}` })
 
@@ -53,7 +55,7 @@ function Column({
           <span style={{ fontWeight: 700, fontSize: 14, color: '#374151' }}>{col.label}</span>
           <span style={{ fontSize: 12, background: '#e5e7eb', borderRadius: 10, padding: '1px 7px', color: '#6b7280' }}>{ids.length}</span>
         </div>
-        <button onClick={onAddClick} style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 20, cursor: 'pointer', lineHeight: 1 }} title="Add task">+</button>
+        {canEdit && <button onClick={onAddClick} style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 20, cursor: 'pointer', lineHeight: 1 }} title="Add task">+</button>}
       </div>
 
       {/* Cards */}
@@ -68,6 +70,7 @@ function Column({
                 task={task}
                 onClick={() => onCardClick(task)}
                 isBeingDragged={id === activeId}
+                canEdit={canEdit}
               />
             )
           })}
@@ -86,7 +89,7 @@ function Column({
   )
 }
 
-export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
+export default function Board({ tasks, onUpdate, onDelete, onCreate, canEdit = true }: Props) {
   // Local ordered lists per column
   const [colIds, setColIds] = useState<Record<ColKey, number[]>>({
     pending: [], progress: [], done: [],
@@ -124,7 +127,9 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
     return null
   }
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const allSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const noSensors = useSensors()
+  const sensors = canEdit ? allSensors : noSensors
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     const task = tasks.find(t => t.id === active.id) ?? null
@@ -199,6 +204,7 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
               activeId={activeTask?.id ?? null}
               onAddClick={() => setCreateStatus(col.key)}
               onCardClick={t => setEditTask(t)}
+              canEdit={canEdit}
             />
           ))}
         </div>
@@ -211,11 +217,11 @@ export default function Board({ tasks, onUpdate, onDelete, onCreate }: Props) {
         <TaskModal
           task={editTask}
           onClose={() => setEditTask(null)}
-          onSave={data => onUpdate(editTask.id, data as TaskUpdate)}
-          onDelete={() => onDelete(editTask.id)}
+          onSave={canEdit ? data => onUpdate(editTask.id, data as TaskUpdate) : undefined}
+          onDelete={canEdit ? () => onDelete(editTask.id) : undefined}
         />
       )}
-      {createStatus && (
+      {canEdit && createStatus && (
         <TaskModal
           defaultStatus={createStatus}
           onClose={() => setCreateStatus(null)}

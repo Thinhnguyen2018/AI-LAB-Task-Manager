@@ -398,10 +398,10 @@ export default function App() {
           {!loading && !error && (
             <>
               <div style={{ display: tab === 'board' ? 'block' : 'none', padding: 24 }}>
-                <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
+                <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
               </div>
               <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
-                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} />
+                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} canEdit={isAdmin} />
               </div>
               {tab === 'milestones' && (
                 <div style={{ padding: 24 }}>
@@ -415,7 +415,7 @@ export default function App() {
               )}
               {tab === 'meeting-notes' && (
                 <div style={{ flex: 1, minHeight: 0 }}>
-                  <MeetingNotes tasks={projectTasks} onTasksChange={load} activeProjectId={activeProjectId} />
+                  <MeetingNotes tasks={projectTasks} onTasksChange={load} activeProjectId={activeProjectId} canEdit={isAdmin} />
                 </div>
               )}
               {tab === 'knowledge-base' && (

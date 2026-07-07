@@ -7,6 +7,7 @@ interface Props {
   tasks: Task[]
   onTasksChange: () => void
   activeProjectId: number | null
+  canEdit?: boolean
 }
 
 type Action = 'create' | 'update' | 'skip'
@@ -47,7 +48,7 @@ const STATUS_LABEL: Record<Task['status'], string> = { pending: 'Pending', progr
 const STATUS_COLOR: Record<Task['status'], string> = { pending: '#d97706', progress: '#2563eb', done: '#16a34a' }
 const STATUS_BG: Record<Task['status'], string> = { pending: '#fef3c7', progress: '#dbeafe', done: '#dcfce7' }
 
-export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: Props) {
+export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, canEdit = true }: Props) {
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
@@ -275,11 +276,13 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       {/* Sidebar */}
       <div style={{ width: 220, background: '#1f2937', borderRight: '1px solid #374151', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '12px 14px', borderBottom: '1px solid #374151' }}>
-          <button onClick={handleCreateNote} style={{ width: '100%', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            + New
-          </button>
-        </div>
+        {canEdit && (
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid #374151' }}>
+            <button onClick={handleCreateNote} style={{ width: '100%', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              + New
+            </button>
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>Loading...</p>}
           {!loading && notes.map(n => {
@@ -309,19 +312,25 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
               <span style={{ fontSize: 16, fontWeight: 700, color: '#111827', flex: 1 }}>{selectedNote.title}</span>
               {!editing && (
                 <>
-                  <button onClick={extractWithAI} disabled={extracting}
-                    style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
-                    {extracting ? '⏳ Extracting...' : '✦ Extract with AI'}
-                  </button>
+                  {canEdit && (
+                    <button onClick={extractWithAI} disabled={extracting}
+                      style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
+                      {extracting ? '⏳ Extracting...' : '✦ Extract with AI'}
+                    </button>
+                  )}
                   <button onClick={prepareNote} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     ✓ Prepare
                   </button>
-                  <button onClick={() => setEditing(true)} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
-                    Edit
-                  </button>
-                  <button onClick={() => handleDeleteNote(selectedNote.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 13, cursor: 'pointer' }}>
-                    Delete
-                  </button>
+                  {canEdit && (
+                    <button onClick={() => setEditing(true)} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+                      Edit
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => handleDeleteNote(selectedNote.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 13, cursor: 'pointer' }}>
+                      Delete
+                    </button>
+                  )}
                 </>
               )}
               {editing && (
@@ -343,7 +352,8 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
               {/* Note content */}
               <div style={{ flex: 1, padding: '20px 32px', overflowY: 'auto' }}>
                 {editing ? (
-                  <textarea value={content} onChange={e => setContent(e.target.value)}
+                  <textarea value={content} onChange={canEdit ? (e => setContent(e.target.value)) : undefined}
+                    readOnly={!canEdit}
                     style={{ width: '100%', height: '100%', minHeight: 400, border: 'none', outline: 'none', fontSize: 14, lineHeight: 1.6, color: '#374151', fontFamily: 'monospace', resize: 'none' }}
                     autoFocus />
                 ) : (
@@ -359,10 +369,12 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>Tasks ({linkedTasks.length})</div>
                       <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>From this note · click to edit</div>
                     </div>
-                    <button onClick={() => setShowExtractPanel(true)}
-                      style={{ fontSize: 11, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>
-                      + Extract
-                    </button>
+                    {canEdit && (
+                      <button onClick={() => setShowExtractPanel(true)}
+                        style={{ fontSize: 11, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>
+                        + Extract
+                      </button>
+                    )}
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
                     {linkedTasks.map(task => (
@@ -423,14 +435,16 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
                                 <span style={{ color: STATUS_COLOR[item.matchedTask.status], fontWeight: 600 }}>[{STATUS_LABEL[item.matchedTask.status]}]</span>
                               </div>
                             )}
-                            <div style={{ padding: '4px 10px', display: 'flex', gap: 4 }}>
-                              {item.matchedTask && (
-                                <button onClick={() => setItemAction(i, 'update')} style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'update' ? '#2563eb' : '#e5e7eb', color: item.action === 'update' ? '#fff' : '#6b7280' }}>Update</button>
-                              )}
-                              <button onClick={() => setItemAction(i, 'create')} style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'create' ? '#16a34a' : '#e5e7eb', color: item.action === 'create' ? '#fff' : '#6b7280' }}>Create</button>
-                              <button onClick={() => setItemAction(i, 'skip')} style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'skip' ? '#6b7280' : '#e5e7eb', color: item.action === 'skip' ? '#fff' : '#6b7280' }}>Skip</button>
-                            </div>
-                            {item.action !== 'skip' && (
+                            {canEdit && (
+                              <div style={{ padding: '4px 10px', display: 'flex', gap: 4 }}>
+                                {item.matchedTask && (
+                                  <button onClick={() => setItemAction(i, 'update')} style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'update' ? '#2563eb' : '#e5e7eb', color: item.action === 'update' ? '#fff' : '#6b7280' }}>Update</button>
+                                )}
+                                <button onClick={() => setItemAction(i, 'create')} style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'create' ? '#16a34a' : '#e5e7eb', color: item.action === 'create' ? '#fff' : '#6b7280' }}>Create</button>
+                                <button onClick={() => setItemAction(i, 'skip')} style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: item.action === 'skip' ? '#6b7280' : '#e5e7eb', color: item.action === 'skip' ? '#fff' : '#6b7280' }}>Skip</button>
+                              </div>
+                            )}
+                            {canEdit && item.action !== 'skip' && (
                               <div style={{ padding: '4px 10px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ fontSize: 11, color: '#6b7280' }}>Status:</span>
                                 {(['pending', 'progress', 'done'] as Task['status'][]).map(s => (
@@ -443,16 +457,18 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
                           </div>
                         ))}
                       </div>
-                      <div style={{ padding: '10px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                        {applyDone ? (
-                          <div style={{ textAlign: 'center', color: '#16a34a', fontSize: 13, fontWeight: 600 }}>✓ Applied!</div>
-                        ) : (
-                          <button onClick={applyAll} disabled={applying || activeCount === 0}
-                            style={{ width: '100%', padding: '8px 0', borderRadius: 6, border: 'none', background: activeCount === 0 ? '#e5e7eb' : '#16a34a', color: activeCount === 0 ? '#9ca3af' : '#fff', fontSize: 13, fontWeight: 600, cursor: activeCount === 0 ? 'default' : 'pointer' }}>
-                            {applying ? 'Applying...' : `Apply ${activeCount} task${activeCount !== 1 ? 's' : ''}`}
-                          </button>
-                        )}
-                      </div>
+                      {canEdit && (
+                        <div style={{ padding: '10px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                          {applyDone ? (
+                            <div style={{ textAlign: 'center', color: '#16a34a', fontSize: 13, fontWeight: 600 }}>✓ Applied!</div>
+                          ) : (
+                            <button onClick={applyAll} disabled={applying || activeCount === 0}
+                              style={{ width: '100%', padding: '8px 0', borderRadius: 6, border: 'none', background: activeCount === 0 ? '#e5e7eb' : '#16a34a', color: activeCount === 0 ? '#9ca3af' : '#fff', fontSize: 13, fontWeight: 600, cursor: activeCount === 0 ? 'default' : 'pointer' }}>
+                              {applying ? 'Applying...' : `Apply ${activeCount} task${activeCount !== 1 ? 's' : ''}`}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : null}
                 </div>
@@ -473,9 +489,11 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
               <p>Select a note or create a new one</p>
-              <button onClick={handleCreateNote} style={{ marginTop: 12, background: '#16a34a', border: 'none', color: '#fff', padding: '8px 20px', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
-                + New Note
-              </button>
+              {canEdit && (
+                <button onClick={handleCreateNote} style={{ marginTop: 12, background: '#16a34a', border: 'none', color: '#fff', padding: '8px 20px', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+                  + New Note
+                </button>
+              )}
             </div>
           </div>
         )}

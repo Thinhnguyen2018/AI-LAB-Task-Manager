@@ -7,9 +7,10 @@ interface Props {
   task: Task
   onClick: () => void
   isBeingDragged?: boolean
+  canEdit?: boolean
 }
 
-export default function TaskCard({ task, onClick, isBeingDragged }: Props) {
+export default function TaskCard({ task, onClick, isBeingDragged, canEdit = true }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
 
   const style: React.CSSProperties = {

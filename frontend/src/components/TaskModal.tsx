@@ -5,7 +5,7 @@ import { getComments, createComment, deleteComment } from '../api'
 interface Props {
   task?: Task
   onClose: () => void
-  onSave: (data: TaskCreate | TaskUpdate) => Promise<void>
+  onSave?: (data: TaskCreate | TaskUpdate) => Promise<void>
   onDelete?: () => Promise<void>
   defaultQuarter?: string
   defaultStatus?: string
@@ -54,7 +54,7 @@ export default function TaskModal({ task, onClose, onSave, onDelete, defaultQuar
     if (!title.trim()) return
     setSaving(true)
     try {
-      await onSave({
+      await onSave?.({
         title: title.trim(),
         module: module as Task['module'],
         status: status as Task['status'],
@@ -268,7 +268,7 @@ export default function TaskModal({ task, onClose, onSave, onDelete, defaultQuar
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 14, cursor: 'pointer' }}>
             Cancel
           </button>
-          {(!task || activeTab === 'details') && (
+          {onSave && (!task || activeTab === 'details') && (
             <button
               onClick={handleSave}
               disabled={saving || !title.trim()}

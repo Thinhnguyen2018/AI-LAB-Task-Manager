@@ -213,10 +213,11 @@ export default function App() {
       <aside style={{
         width: sidebarW, minWidth: sidebarW,
         background: '#111827', display: 'flex', flexDirection: 'column',
-        transition: 'width 0.2s', overflow: 'hidden', position: 'relative',
+        transition: 'width 0.2s', overflow: 'hidden',
+        height: '100vh', position: 'sticky', top: 0,
       }}>
         {/* Logo */}
-        <div style={{ padding: collapsed ? '16px 0' : '16px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #1f2937' }}>
+        <div style={{ padding: collapsed ? '16px 0' : '16px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #1f2937', flexShrink: 0 }}>
           <div style={{ width: 28, height: 28, background: '#16a34a', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, color: '#fff', fontWeight: 700, marginLeft: collapsed ? 14 : 0 }}>T</div>
           {!collapsed && <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap' }}>TaskFlow</span>}
         </div>
@@ -302,7 +303,7 @@ export default function App() {
         </nav>
 
         {/* Settings nav item */}
-        <div style={{ padding: '8px 0', borderTop: '1px solid #1f2937' }}>
+        <div style={{ padding: '8px 0', borderTop: '1px solid #1f2937', flexShrink: 0 }}>
           <button
             onClick={() => setTab('settings')}
             title={collapsed ? 'Settings' : undefined}
@@ -323,7 +324,7 @@ export default function App() {
         </div>
 
         {/* User */}
-        <div style={{ padding: collapsed ? '12px 0' : '12px 16px', borderTop: '1px solid #1f2937', display: 'flex', alignItems: 'center', gap: 8, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+        <div style={{ padding: collapsed ? '12px 0' : '12px 16px', borderTop: '1px solid #1f2937', display: 'flex', alignItems: 'center', gap: 8, justifyContent: collapsed ? 'center' : 'flex-start', flexShrink: 0 }}>
           <div style={{ width: 28, height: 28, background: '#374151', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
             {currentUser.name.charAt(0).toUpperCase()}
           </div>

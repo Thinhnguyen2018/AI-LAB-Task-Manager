@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 const PROJECT_COLORS = ['#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
 
-const SUGGESTED_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release', 'Frontend', 'Backend', 'Design', 'Marketing', 'Research', 'Testing']
+const SUGGESTED_MODULES = ['Frontend', 'Backend', 'Design', 'Marketing', 'Research', 'Testing', 'Infra', 'Integration', 'Planning', 'Release']
 
 interface Props {
   onConfirm: (name: string, color: string, modules: string[]) => Promise<void>

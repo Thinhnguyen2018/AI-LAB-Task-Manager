@@ -9,9 +9,19 @@ interface Props {
   onUpdate: (id: number, task: TaskUpdate) => Promise<void>
   onDelete: (id: number) => Promise<void>
   onCreate: (task: TaskCreate) => Promise<void>
+  activeProjectId?: number | null
 }
 
-const MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
+const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
+function getProjectModules(projectId?: number | null): string[] {
+  try {
+    if (projectId) {
+      const stored = localStorage.getItem(`modules-${projectId}`)
+      if (stored) return JSON.parse(stored)
+    }
+    return DEFAULT_MODULES
+  } catch { return DEFAULT_MODULES }
+}
 const MODULE_COLORS: Record<string, string> = {
   GreenRAG: '#16a34a', 'Doc-Intelli': '#2563eb', Infra: '#d97706',
   Integration: '#7c3aed', Milestone: '#db2777', Release: '#0891b2',
@@ -73,7 +83,8 @@ const QUARTERS_DEF = [
 ]
 const ALL_MONTHS = QUARTERS_DEF.flatMap(q => q.months.map((m, i) => ({ month: m, label: q.labels[i], quarter: q.key })))
 
-export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) {
+export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId }: Props) {
+  const MODULES = getProjectModules(activeProjectId)
   const [view, setView] = useState<ViewMode>('all')
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [creating, setCreating] = useState<Partial<{ quarter: string; month: number; week: number }> | null>(null)

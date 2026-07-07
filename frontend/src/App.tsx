@@ -363,7 +363,7 @@ export default function App() {
                 <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
               </div>
               <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
-                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
+                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} />
               </div>
               {tab === 'milestones' && (
                 <div style={{ padding: 24 }}>

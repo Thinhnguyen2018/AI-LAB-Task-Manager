@@ -1,16 +1,8 @@
 import { Task } from '../types'
+import { moduleColor } from '../utils/moduleColor'
 
 interface Props {
   tasks: Task[]
-}
-
-const MODULE_COLORS: Record<string, string> = {
-  GreenRAG: '#16a34a',
-  'Doc-Intelli': '#2563eb',
-  Infra: '#d97706',
-  Integration: '#7c3aed',
-  Milestone: '#db2777',
-  Release: '#0891b2',
 }
 
 export default function Dashboard({ tasks }: Props) {
@@ -70,7 +62,7 @@ export default function Dashboard({ tasks }: Props) {
           <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>By Module</h3>
           {Object.entries(byModule).map(([mod, { total: t, done: d }]) => {
             const p = Math.round((d / t) * 100)
-            const color = MODULE_COLORS[mod] ?? '#6b7280'
+            const color = moduleColor(mod)
             return (
               <div key={mod} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>

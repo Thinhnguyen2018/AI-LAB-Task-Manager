@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { Task, TaskCreate, TaskUpdate } from '../types'
+import { moduleColor } from '../utils/moduleColor'
 import TaskModal from './TaskModal'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -21,10 +22,6 @@ function getProjectModules(projectId?: number | null): string[] {
     }
     return DEFAULT_MODULES
   } catch { return DEFAULT_MODULES }
-}
-const MODULE_COLORS: Record<string, string> = {
-  GreenRAG: '#16a34a', 'Doc-Intelli': '#2563eb', Infra: '#d97706',
-  Integration: '#7c3aed', Milestone: '#db2777', Release: '#0891b2',
 }
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
   pending:  { background: '#fef3c7', color: '#d97706', border: '1px solid #fde68a' },
@@ -293,10 +290,10 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
                 <td style={{
                   padding: '8px 10px', border: '1px solid #e5e7eb',
                   fontWeight: 600, fontSize: 12,
-                  color: MODULE_COLORS[mod] ?? '#374151',
+                  color: moduleColor(mod),
                   background: '#fafafa', whiteSpace: 'nowrap',
                 }}>
-                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: MODULE_COLORS[mod], marginRight: 6 }} />
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: moduleColor(mod), marginRight: 6 }} />
                   {mod}
                 </td>
                 {columns.map(col => {

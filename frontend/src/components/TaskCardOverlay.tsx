@@ -1,20 +1,12 @@
 import { Task } from '../types'
+import { moduleColor } from '../utils/moduleColor'
 
 interface Props {
   task: Task
 }
 
-const MODULE_COLORS: Record<string, string> = {
-  GreenRAG: '#16a34a',
-  'Doc-Intelli': '#2563eb',
-  Infra: '#d97706',
-  Integration: '#7c3aed',
-  Milestone: '#db2777',
-  Release: '#0891b2',
-}
-
 export default function TaskCardOverlay({ task }: Props) {
-  const color = MODULE_COLORS[task.module] ?? '#6b7280'
+  const color = moduleColor(task.module)
 
   return (
     <div style={{

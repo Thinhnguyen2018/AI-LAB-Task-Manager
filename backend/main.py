@@ -127,13 +127,12 @@ def register(body: schemas.UserRegister, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    # First user becomes admin of all existing projects
-    existing_projects = db.query(models.Project).all()
-    for p in existing_projects:
-        already = db.query(models.ProjectMember).filter_by(project_id=p.id, user_id=user.id).first()
-        if not already:
+    # Only the first registered user auto-joins all existing projects as admin
+    is_first_user = db.query(models.User).count() == 1
+    if is_first_user:
+        for p in db.query(models.Project).all():
             db.add(models.ProjectMember(project_id=p.id, user_id=user.id, role="admin"))
-    db.commit()
+        db.commit()
     return {"access_token": create_token(user.id), "token_type": "bearer", "user": user}
 
 @app.post("/auth/login", response_model=schemas.TokenOut)

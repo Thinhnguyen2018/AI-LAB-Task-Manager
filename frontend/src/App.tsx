@@ -52,7 +52,16 @@ export default function App() {
 
   // Projects
   const [projects, setProjects] = useState<Project[]>([])
-  const [activeProjectId, setActiveProjectId] = useState<number | null>(null)
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('activeProjectId')
+    return saved ? Number(saved) : null
+  })
+
+  const setActiveProjectIdPersisted = (id: number | null) => {
+    setActiveProjectId(id)
+    if (id == null) localStorage.removeItem('activeProjectId')
+    else localStorage.setItem('activeProjectId', String(id))
+  }
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0])
@@ -66,7 +75,7 @@ export default function App() {
       setTasks(data)
       setProjects(projs)
       // Auto-select first project if none selected
-      if (projs.length > 0) setActiveProjectId(prev => prev ?? projs[0].id)
+      if (projs.length > 0) setActiveProjectId(prev => { const id = prev ?? projs[0].id; localStorage.setItem('activeProjectId', String(id)); return id })
       setError(null)
     } catch (e: any) {
       setError(e.message)
@@ -102,7 +111,7 @@ export default function App() {
     if (!newProjectName.trim()) return
     const proj = await createProject(newProjectName.trim(), newProjectColor)
     setProjects(prev => [...prev, proj])
-    setActiveProjectId(proj.id)
+    setActiveProjectIdPersisted(proj.id)
     setNewProjectName('')
     setNewProjectColor(PROJECT_COLORS[0])
     setShowNewProject(false)
@@ -119,7 +128,7 @@ export default function App() {
     if (!confirm('Delete this project? Tasks will remain but lose project association.')) return
     await deleteProject(id)
     setProjects(prev => prev.filter(p => p.id !== id))
-    if (activeProjectId === id) setActiveProjectId(null)
+    if (activeProjectId === id) setActiveProjectIdPersisted(null)
   }
 
   // Filter tasks by active project, then by search/filter
@@ -180,7 +189,7 @@ export default function App() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setActiveProjectId(p.id)}
+                    onClick={() => setActiveProjectIdPersisted(p.id)}
                     onDoubleClick={() => { setEditingProjectId(p.id); setEditingProjectName(p.name) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,

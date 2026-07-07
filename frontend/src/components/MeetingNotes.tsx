@@ -275,31 +275,37 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       {/* Sidebar */}
-      <div style={{ width: 220, background: '#1f2937', borderRight: '1px solid #374151', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: 240, background: '#fff', borderRight: '1px solid #dfe1e6', display: 'flex', flexDirection: 'column' }}>
         {canEdit && (
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid #374151' }}>
-            <button onClick={handleCreateNote} style={{ width: '100%', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid #dfe1e6' }}>
+            <button onClick={handleCreateNote} style={{ width: '100%', background: '#0052cc', border: 'none', color: '#fff', borderRadius: 4, padding: '7px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               + New
             </button>
           </div>
         )}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>Loading...</p>}
+          {loading && <p style={{ color: '#6b778c', fontSize: 13, padding: 14 }}>Loading...</p>}
           {!loading && notes.map(n => {
             const localNoteIds = localNoteTaskIds[n.id] ?? []
             const count = tasks.filter(t => t.note_id === n.id || localNoteIds.includes(t.id)).length
+            const isSelected = selected === n.id
             return (
               <div key={n.id} onClick={() => { setSelected(n.id); setEditing(false) }}
-                style={{ padding: '10px 14px', cursor: 'pointer', background: selected === n.id ? '#374151' : 'none', borderLeft: selected === n.id ? '3px solid #16a34a' : '3px solid transparent' }}>
+                style={{
+                  padding: '10px 14px', cursor: 'pointer',
+                  background: isSelected ? '#e9f2ff' : 'none',
+                  borderLeft: isSelected ? '3px solid #0052cc' : '3px solid transparent',
+                  transition: 'background 0.1s',
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e5e7eb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{n.title}</div>
-                  {count > 0 && <span style={{ fontSize: 10, background: '#16a34a', color: '#fff', borderRadius: 8, padding: '1px 5px', flexShrink: 0, marginLeft: 4 }}>{count}</span>}
+                  <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#0052cc' : '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{n.title}</div>
+                  {count > 0 && <span style={{ fontSize: 10, background: '#0052cc', color: '#fff', borderRadius: 10, padding: '1px 6px', flexShrink: 0, marginLeft: 6, fontWeight: 600 }}>{count}</span>}
                 </div>
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{n.content.slice(0, 40).replace(/[#\n]/g, ' ').trim()}...</div>
+                <div style={{ fontSize: 11, color: '#6b778c', marginTop: 3 }}>{n.content.slice(0, 44).replace(/[#\n]/g, ' ').trim()}...</div>
               </div>
             )
           })}
-          {!loading && notes.length === 0 && <p style={{ color: '#6b7280', fontSize: 13, padding: 14 }}>No notes yet</p>}
+          {!loading && notes.length === 0 && <p style={{ color: '#6b778c', fontSize: 13, padding: 14 }}>No notes yet</p>}
         </div>
       </div>
 
@@ -308,26 +314,26 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
         {selectedNote ? (
           <>
             {/* Toolbar */}
-            <div style={{ padding: '10px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#111827', flex: 1 }}>{selectedNote.title}</span>
+            <div style={{ padding: '10px 20px', borderBottom: '1px solid #dfe1e6', display: 'flex', alignItems: 'center', gap: 8, background: '#fff' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#172b4d', flex: 1 }}>{selectedNote.title}</span>
               {!editing && (
                 <>
                   {canEdit && (
                     <button onClick={extractWithAI} disabled={extracting}
-                      style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
+                      style={{ background: '#0052cc', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: extracting ? 'wait' : 'pointer', opacity: extracting ? 0.7 : 1 }}>
                       {extracting ? '⏳ Extracting...' : '✦ Extract with AI'}
                     </button>
                   )}
-                  <button onClick={prepareNote} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  <button onClick={prepareNote} style={{ background: '#fff', border: '1px solid #dfe1e6', color: '#42526e', padding: '5px 12px', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}>
                     ✓ Prepare
                   </button>
                   {canEdit && (
-                    <button onClick={() => setEditing(true)} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+                    <button onClick={() => setEditing(true)} style={{ background: '#fff', border: '1px solid #dfe1e6', color: '#42526e', padding: '5px 12px', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}>
                       Edit
                     </button>
                   )}
                   {canEdit && (
-                    <button onClick={() => handleDeleteNote(selectedNote.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 13, cursor: 'pointer' }}>
+                    <button onClick={() => handleDeleteNote(selectedNote.id)} style={{ background: 'none', border: 'none', color: '#de350b', fontSize: 13, cursor: 'pointer', padding: '5px 8px' }}>
                       Delete
                     </button>
                   )}
@@ -336,11 +342,11 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
               {editing && (
                 <>
                   <button onClick={handleSaveNote} disabled={saving}
-                    style={{ background: '#16a34a', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                    style={{ background: '#0052cc', border: 'none', color: '#fff', padding: '5px 14px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
                     {saving ? 'Saving...' : 'Save'}
                   </button>
                   <button onClick={() => { setEditing(false); setContent(selectedNote.content) }}
-                    style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#374151', padding: '5px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+                    style={{ background: '#fff', border: '1px solid #dfe1e6', color: '#42526e', padding: '5px 12px', borderRadius: 4, fontSize: 13, cursor: 'pointer' }}>
                     Cancel
                   </button>
                 </>
@@ -363,15 +369,15 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
 
               {/* ── Linked tasks panel (persistent) ── */}
               {showLinkedPanel && !editing && (
-                <div style={{ width: 300, borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ width: 300, borderLeft: '1px solid #dfe1e6', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #dfe1e6', background: '#f4f5f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>Tasks ({linkedTasks.length})</div>
-                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>From this note · click to edit</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tasks ({linkedTasks.length})</div>
+                      <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1 }}>From this note · click to edit</div>
                     </div>
                     {canEdit && (
                       <button onClick={() => setShowExtractPanel(true)}
-                        style={{ fontSize: 11, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>
+                        style={{ fontSize: 11, background: '#0052cc', color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>
                         + Extract
                       </button>
                     )}
@@ -397,7 +403,7 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
 
               {/* ── Extract / confirm panel ── */}
               {showExtractPanel && !editing && (
-                <div style={{ width: 320, borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ width: 320, borderLeft: '1px solid #dfe1e6', display: 'flex', flexDirection: 'column' }}>
                   {extractError ? (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontSize: 13, padding: 24, textAlign: 'center' }}>
                       <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
@@ -412,10 +418,10 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
                     </div>
                   ) : items.length > 0 ? (
                     <>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid #dfe1e6', background: '#f4f5f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>AI Extracted — {items.length} tasks</div>
-                          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>Review then apply</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI Extracted — {items.length} tasks</div>
+                          <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1 }}>Review then apply</div>
                         </div>
                         <button onClick={() => setShowExtractPanel(false)} style={{ fontSize: 16, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
                       </div>
@@ -458,12 +464,12 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
                         ))}
                       </div>
                       {canEdit && (
-                        <div style={{ padding: '10px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                        <div style={{ padding: '10px 12px', borderTop: '1px solid #dfe1e6', background: '#f4f5f7' }}>
                           {applyDone ? (
                             <div style={{ textAlign: 'center', color: '#16a34a', fontSize: 13, fontWeight: 600 }}>✓ Applied!</div>
                           ) : (
                             <button onClick={applyAll} disabled={applying || activeCount === 0}
-                              style={{ width: '100%', padding: '8px 0', borderRadius: 6, border: 'none', background: activeCount === 0 ? '#e5e7eb' : '#16a34a', color: activeCount === 0 ? '#9ca3af' : '#fff', fontSize: 13, fontWeight: 600, cursor: activeCount === 0 ? 'default' : 'pointer' }}>
+                              style={{ width: '100%', padding: '8px 0', borderRadius: 4, border: 'none', background: activeCount === 0 ? '#dfe1e6' : '#0052cc', color: activeCount === 0 ? '#6b778c' : '#fff', fontSize: 13, fontWeight: 600, cursor: activeCount === 0 ? 'default' : 'pointer' }}>
                               {applying ? 'Applying...' : `Apply ${activeCount} task${activeCount !== 1 ? 's' : ''}`}
                             </button>
                           )}
@@ -476,7 +482,7 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId, ca
 
               {/* ── Empty state ── */}
               {!showExtractPanel && linkedTasks.length === 0 && !editing && (
-                <div style={{ width: 220, borderLeft: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>
+                <div style={{ width: 220, borderLeft: '1px solid #dfe1e6', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#6b778c', fontSize: 13, textAlign: 'center', background: '#f4f5f7' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>No tasks yet</div>
                   <div style={{ fontSize: 12 }}>Use "Extract with AI" to create tasks from this note</div>

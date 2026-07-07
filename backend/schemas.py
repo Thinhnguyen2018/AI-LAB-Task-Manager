@@ -72,6 +72,28 @@ class NoteOut(BaseModel):
     updated_at: datetime
     model_config = {"from_attributes": True}
 
+class KbDocCreate(BaseModel):
+    id: str
+    title: str
+    content: str = ""
+    category: str = "General"
+    project_id: Optional[int] = None
+
+class KbDocUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
+
+class KbDocOut(BaseModel):
+    id: str
+    title: str
+    content: str
+    category: str
+    project_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
 class CommentCreate(BaseModel):
     author: str = "Me"
     content: str

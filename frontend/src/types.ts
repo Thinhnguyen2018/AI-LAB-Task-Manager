@@ -38,5 +38,15 @@ export interface Comment {
   created_at: string
 }
 
+export interface KbDoc {
+  id: string
+  title: string
+  content: string
+  category: string
+  project_id?: number
+  created_at: string
+  updated_at: string
+}
+
 export type TaskCreate = Omit<Task, 'id'>
 export type TaskUpdate = Partial<TaskCreate>

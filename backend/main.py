@@ -33,6 +33,17 @@ with engine.connect() as conn:
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS kb_docs (
+            id VARCHAR(50) PRIMARY KEY,
+            title VARCHAR(200) NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            category VARCHAR(100) NOT NULL DEFAULT 'General',
+            project_id INTEGER,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
     conn.commit()
 
 app = FastAPI()
@@ -125,6 +136,41 @@ def delete_note(note_id: str, db: Session = Depends(get_db)):
     if not db_note:
         raise HTTPException(status_code=404, detail="Note not found")
     db.delete(db_note)
+    db.commit()
+
+@app.get("/kb", response_model=List[schemas.KbDocOut])
+def get_kb_docs(project_id: int = None, db: Session = Depends(get_db)):
+    q = db.query(models.KbDoc)
+    if project_id is not None:
+        q = q.filter(models.KbDoc.project_id == project_id)
+    return q.order_by(models.KbDoc.updated_at.desc()).all()
+
+@app.post("/kb", response_model=schemas.KbDocOut)
+def create_kb_doc(doc: schemas.KbDocCreate, db: Session = Depends(get_db)):
+    db_doc = models.KbDoc(**doc.model_dump())
+    db.add(db_doc)
+    db.commit()
+    db.refresh(db_doc)
+    return db_doc
+
+@app.patch("/kb/{doc_id}", response_model=schemas.KbDocOut)
+def update_kb_doc(doc_id: str, doc: schemas.KbDocUpdate, db: Session = Depends(get_db)):
+    db_doc = db.query(models.KbDoc).filter(models.KbDoc.id == doc_id).first()
+    if not db_doc:
+        raise HTTPException(status_code=404, detail="Doc not found")
+    for key, value in doc.model_dump(exclude_unset=True).items():
+        setattr(db_doc, key, value)
+    db_doc.updated_at = func.now()
+    db.commit()
+    db.refresh(db_doc)
+    return db_doc
+
+@app.delete("/kb/{doc_id}", status_code=204)
+def delete_kb_doc(doc_id: str, db: Session = Depends(get_db)):
+    db_doc = db.query(models.KbDoc).filter(models.KbDoc.id == doc_id).first()
+    if not db_doc:
+        raise HTTPException(status_code=404, detail="Doc not found")
+    db.delete(db_doc)
     db.commit()
 
 @app.get("/projects", response_model=List[schemas.ProjectOut])

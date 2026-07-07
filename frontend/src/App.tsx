@@ -8,8 +8,9 @@ import MilestonesTab from './components/MilestonesTab'
 import Dashboard from './components/Dashboard'
 import MeetingNotes from './components/MeetingNotes'
 import Settings from './components/Settings'
+import KnowledgeBase from './components/KnowledgeBase'
 
-type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'settings'
+type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'knowledge-base' | 'settings'
 
 const NAV: { key: Tab; label: string; icon: string }[] = [
   { key: 'board', label: 'Board', icon: '▦' },
@@ -17,6 +18,7 @@ const NAV: { key: Tab; label: string; icon: string }[] = [
   { key: 'milestones', label: 'Milestones', icon: '◈' },
   { key: 'dashboard', label: 'Dashboard', icon: '◉' },
   { key: 'meeting-notes', label: 'Meeting Notes', icon: '◧' },
+  { key: 'knowledge-base', label: 'Knowledge Base', icon: '◭' },
 ]
 
 const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
@@ -326,7 +328,7 @@ export default function App() {
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: activeProject.color, display: 'inline-block' }} />
             )}
             <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
-              {tab === 'settings' ? 'Settings' : `${activeProject ? `${activeProject.name} — ` : ''}${NAV.find(n => n.key === tab)?.label}`}
+              {tab === 'settings' ? 'Settings' : `${activeProject && tab !== 'knowledge-base' ? `${activeProject.name} — ` : activeProject ? `${activeProject.name} — ` : ''}${NAV.find(n => n.key === tab)?.label ?? tab}`}
             </h1>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -377,6 +379,9 @@ export default function App() {
                 <div style={{ flex: 1, minHeight: 0 }}>
                   <MeetingNotes tasks={tasks} onTasksChange={load} activeProjectId={activeProjectId} />
                 </div>
+              )}
+              {tab === 'knowledge-base' && (
+                <KnowledgeBase activeProjectId={activeProjectId} />
               )}
               {tab === 'settings' && (
                 <div style={{ padding: 24 }}>

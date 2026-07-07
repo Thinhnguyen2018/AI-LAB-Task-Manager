@@ -63,6 +63,7 @@ export default function App() {
     setActiveProjectId(id)
     if (id == null) localStorage.removeItem('activeProjectId')
     else localStorage.setItem('activeProjectId', String(id))
+    setTab('board')
   }
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')

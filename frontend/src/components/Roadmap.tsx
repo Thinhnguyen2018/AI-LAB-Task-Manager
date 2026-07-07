@@ -78,6 +78,8 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [creating, setCreating] = useState<Partial<{ quarter: string; month: number; week: number }> | null>(null)
   const tableRef = useRef<HTMLDivElement>(null)
+  const [dragTaskId, setDragTaskId] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<string | null>(null) // "mod:colKey"
 
   // ── Column definitions per view ──
   type Col = { key: string; label: string; sub?: string; isToday?: boolean }
@@ -158,6 +160,35 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
       })
     }
     return []
+  }
+
+  const handleDrop = (module: string, col: Col) => {
+    if (dragTaskId == null) return
+    const task = tasks.find(t => t.id === dragTaskId)
+    if (!task || task.module !== module) return
+    setDragOver(null)
+    setDragTaskId(null)
+
+    if (view === 'all' || view === 'quarter') {
+      const month = Number(col.key)
+      const qDef = QUARTERS_DEF.find(q => q.months.includes(month))
+      onUpdate(task.id, { month, quarter: qDef?.key as Task['quarter'] ?? task.quarter })
+    } else if (view === 'month') {
+      const weekNum = Number(col.key)
+      // Update deadline to Monday of the target week in current month/year
+      const jan1 = new Date(TODAY_YEAR, 0, 1)
+      const daysOffset = (weekNum - 1) * 7 - (jan1.getDay() || 7) + 1
+      const monday = new Date(TODAY_YEAR, 0, 1 + daysOffset)
+      const deadline = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+      onUpdate(task.id, { month: TODAY_MONTH, week: weekNum, deadline })
+    } else if (view === 'week') {
+      const dayOfWeek = Number(col.key) // 1=Mon ... 7=Sun
+      const monday = getMonday(NOW)
+      const target = new Date(monday)
+      target.setDate(monday.getDate() + dayOfWeek - 1)
+      const deadline = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`
+      onUpdate(task.id, { deadline, month: target.getMonth() + 1, week: TODAY_WEEK })
+    }
   }
 
   const exportPNG = async () => {
@@ -259,17 +290,23 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
                 </td>
                 {columns.map(col => {
                   const colTasks = getColTasks(mod, col)
+                  const cellKey = `${mod}:${col.key}`
+                  const isDropTarget = dragOver === cellKey
                   return (
                     <td
                       key={col.key}
+                      onDragOver={e => { e.preventDefault(); setDragOver(cellKey) }}
+                      onDragLeave={() => setDragOver(prev => prev === cellKey ? null : prev)}
+                      onDrop={() => handleDrop(mod, col)}
                       style={{
                         padding: colTasks.length ? 4 : 8,
-                        border: '1px solid #e5e7eb',
+                        border: isDropTarget ? '2px dashed #16a34a' : '1px solid #e5e7eb',
                         verticalAlign: 'top',
-                        background: col.isToday ? '#f0fdf4' : '#fff',
+                        background: isDropTarget ? '#f0fdf4' : col.isToday ? '#f0fdf4' : '#fff',
                         cursor: 'pointer',
+                        transition: 'background 0.1s',
                       }}
-                      onClick={() => colTasks.length === 0 && setCreating({ month: Number(col.key) })}
+                      onClick={() => colTasks.length === 0 && !dragTaskId && setCreating({ month: Number(col.key) })}
                     >
                       {colTasks.length === 0 ? (
                         <div style={{ color: '#e5e7eb', fontSize: 16, textAlign: 'center' }}>—</div>
@@ -278,8 +315,17 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
                           {colTasks.map(task => (
                             <div
                               key={task.id}
+                              draggable
+                              onDragStart={e => { setDragTaskId(task.id); e.dataTransfer.effectAllowed = 'move' }}
+                              onDragEnd={() => { setDragTaskId(null); setDragOver(null) }}
                               onClick={e => { e.stopPropagation(); setEditTask(task) }}
-                              style={{ ...STATUS_STYLE[task.status], borderRadius: 5, padding: '3px 6px', fontSize: 11, cursor: 'pointer', lineHeight: 1.4 }}
+                              style={{
+                                ...STATUS_STYLE[task.status],
+                                borderRadius: 5, padding: '3px 6px', fontSize: 11,
+                                cursor: 'grab', lineHeight: 1.4,
+                                opacity: dragTaskId === task.id ? 0.4 : 1,
+                                transition: 'opacity 0.15s',
+                              }}
                             >
                               <div style={{ fontWeight: 600 }}>{task.title}</div>
                               {task.assignee && <div style={{ opacity: 0.7, fontSize: 10 }}>{task.assignee}</div>}

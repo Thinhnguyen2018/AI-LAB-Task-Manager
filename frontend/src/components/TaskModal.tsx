@@ -12,14 +12,22 @@ interface Props {
 }
 
 const DEFAULT_MODULES: string[] = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
-const getModules = (): string[] => { try { return JSON.parse(localStorage.getItem('modules') || 'null') || DEFAULT_MODULES } catch { return DEFAULT_MODULES } }
-const MODULES = getModules()
+const getModules = (projectId?: number): string[] => {
+  try {
+    if (projectId) {
+      const stored = localStorage.getItem(`modules-${projectId}`)
+      if (stored) return JSON.parse(stored)
+    }
+    return DEFAULT_MODULES
+  } catch { return DEFAULT_MODULES }
+}
 const STATUSES = ['pending', 'progress', 'done']
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 
 type TabKey = 'details' | 'comments' | 'activity'
 
 export default function TaskModal({ task, onClose, onSave, onDelete, defaultQuarter, defaultStatus }: Props) {
+  const MODULES = getModules(task?.project_id)
   const [activeTab, setActiveTab] = useState<TabKey>('details')
   const [title, setTitle] = useState(task?.title ?? '')
   const [module, setModule] = useState(task?.module ?? 'GreenRAG')

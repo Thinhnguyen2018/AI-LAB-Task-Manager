@@ -384,18 +384,15 @@ export default function App() {
                 <KnowledgeBase activeProjectId={activeProjectId} />
               )}
               {tab === 'settings' && (
-                <div style={{ padding: 24 }}>
+                <div style={{ padding: 24, overflowY: 'auto', height: '100%' }}>
                   <Settings
+                    project={activeProject ?? null}
                     projects={projects}
                     tasks={tasks}
-                    activeProjectId={activeProjectId}
-                    onProjectsChange={setProjects}
+                    onProjectChange={updated => setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))}
+                    onProjectDelete={id => { setProjects(prev => prev.filter(p => p.id !== id)); if (activeProjectId === id) setActiveProjectIdPersisted(null) }}
                     onTasksChange={load}
                     onDeleteProjectTasks={handleDeleteProjectTasks}
-                    userName={userName}
-                    onUserNameChange={handleUserNameChange}
-                    modules={modules}
-                    onModulesChange={handleModulesChange}
                   />
                 </div>
               )}

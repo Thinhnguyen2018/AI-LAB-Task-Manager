@@ -11,7 +11,9 @@ interface Props {
   defaultStatus?: string
 }
 
-const MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
+const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
+const getModules = () => { try { return JSON.parse(localStorage.getItem('modules') || 'null') || DEFAULT_MODULES } catch { return DEFAULT_MODULES } }
+const MODULES = getModules()
 const STATUSES = ['pending', 'progress', 'done']
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 

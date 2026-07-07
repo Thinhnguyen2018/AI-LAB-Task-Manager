@@ -7,8 +7,9 @@ import FilterBar from './components/FilterBar'
 import MilestonesTab from './components/MilestonesTab'
 import Dashboard from './components/Dashboard'
 import MeetingNotes from './components/MeetingNotes'
+import Settings from './components/Settings'
 
-type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes'
+type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'settings'
 
 const NAV: { key: Tab; label: string; icon: string }[] = [
   { key: 'board', label: 'Board', icon: '▦' },
@@ -17,6 +18,8 @@ const NAV: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '◉' },
   { key: 'meeting-notes', label: 'Meeting Notes', icon: '◧' },
 ]
+
+const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
 
 const PROJECT_COLORS = ['#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
 
@@ -30,6 +33,22 @@ export default function App() {
   const [filterModule, setFilterModule] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
+
+  // User profile
+  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Thinh')
+  // Modules
+  const [modules, setModules] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('modules') || 'null') || DEFAULT_MODULES } catch { return DEFAULT_MODULES }
+  })
+
+  const handleUserNameChange = (name: string) => {
+    setUserName(name)
+    localStorage.setItem('userName', name)
+  }
+  const handleModulesChange = (mods: string[]) => {
+    setModules(mods)
+    localStorage.setItem('modules', JSON.stringify(mods))
+  }
 
   // Projects
   const [projects, setProjects] = useState<Project[]>([])
@@ -69,6 +88,12 @@ export default function App() {
   const handleDelete = async (id: number) => {
     await deleteTask(id)
     setTasks(prev => prev.filter(t => t.id !== id))
+  }
+
+  const handleDeleteProjectTasks = async (projectId: number) => {
+    const toDelete = tasks.filter(t => t.project_id === projectId)
+    await Promise.all(toDelete.map(t => deleteTask(t.id)))
+    setTasks(prev => prev.filter(t => t.project_id !== projectId))
   }
 
   const handleCreateProject = async () => {
@@ -234,11 +259,34 @@ export default function App() {
           ))}
         </nav>
 
+        {/* Settings nav item */}
+        <div style={{ padding: '8px 0', borderTop: '1px solid #1f2937' }}>
+          <button
+            onClick={() => setTab('settings')}
+            title={collapsed ? 'Settings' : undefined}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              width: '100%', padding: collapsed ? '10px 0' : '10px 20px',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              background: tab === 'settings' ? '#1f2937' : 'none',
+              border: 'none', cursor: 'pointer',
+              color: tab === 'settings' ? '#4ade80' : '#9ca3af',
+              fontSize: 14, fontWeight: tab === 'settings' ? 600 : 400,
+              borderLeft: tab === 'settings' ? '3px solid #16a34a' : '3px solid transparent',
+            }}
+          >
+            <span style={{ fontSize: 16, flexShrink: 0 }}>⚙</span>
+            {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>Settings</span>}
+          </button>
+        </div>
+
         {/* User */}
         {!collapsed && (
           <div style={{ padding: '12px 20px', borderTop: '1px solid #1f2937', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, background: '#374151', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>T</div>
-            <span style={{ color: '#9ca3af', fontSize: 13, whiteSpace: 'nowrap' }}>Thinh</span>
+            <div style={{ width: 28, height: 28, background: '#374151', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+              {userName.charAt(0).toUpperCase()}
+            </div>
+            <span style={{ color: '#9ca3af', fontSize: 13, whiteSpace: 'nowrap' }}>{userName}</span>
           </div>
         )}
 
@@ -267,7 +315,7 @@ export default function App() {
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: activeProject.color, display: 'inline-block' }} />
             )}
             <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
-              {activeProject ? `${activeProject.name} — ` : ''}{NAV.find(n => n.key === tab)?.label}
+              {tab === 'settings' ? 'Settings' : `${activeProject ? `${activeProject.name} — ` : ''}${NAV.find(n => n.key === tab)?.label}`}
             </h1>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -317,6 +365,22 @@ export default function App() {
               {tab === 'meeting-notes' && (
                 <div style={{ flex: 1, minHeight: 0 }}>
                   <MeetingNotes tasks={tasks} onTasksChange={load} />
+                </div>
+              )}
+              {tab === 'settings' && (
+                <div style={{ padding: 24 }}>
+                  <Settings
+                    projects={projects}
+                    tasks={tasks}
+                    activeProjectId={activeProjectId}
+                    onProjectsChange={setProjects}
+                    onTasksChange={load}
+                    onDeleteProjectTasks={handleDeleteProjectTasks}
+                    userName={userName}
+                    onUserNameChange={handleUserNameChange}
+                    modules={modules}
+                    onModulesChange={handleModulesChange}
+                  />
                 </div>
               )}
             </>

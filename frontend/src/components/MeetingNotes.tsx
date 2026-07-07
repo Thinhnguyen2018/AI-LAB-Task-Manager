@@ -38,7 +38,7 @@ function matchScore(a: string, b: string): number {
   let common = 0
   wa.forEach(w => { if (wb.has(w)) common++ })
   const jaccard = common / Math.max(wa.size, wb.size, 1)
-  const subset = common / Math.min(wa.size, wb.size, 1)
+  const subset = common / Math.max(1, Math.min(wa.size, wb.size))
   return Math.max(jaccard, subset * 0.8)
 }
 

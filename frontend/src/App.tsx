@@ -198,6 +198,12 @@ export default function App() {
           </button>
         </div>
       </div>
+      {showNewProjectModal && (
+        <NewProjectModal
+          onConfirm={handleCreateProject}
+          onClose={() => setShowNewProjectModal(false)}
+        />
+      )}
     </div>
   )
 

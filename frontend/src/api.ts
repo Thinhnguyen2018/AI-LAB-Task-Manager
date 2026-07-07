@@ -91,10 +91,10 @@ export const deleteKbDoc = (id: string): Promise<void> =>
 
 export const getProjects = (): Promise<Project[]> => request('/projects')
 
-export const createProject = (name: string, color: string): Promise<Project> =>
-  request('/projects', { method: 'POST', body: JSON.stringify({ name, color }) })
+export const createProject = (name: string, color: string, modules: string[] = []): Promise<Project> =>
+  request('/projects', { method: 'POST', body: JSON.stringify({ name, color, modules }) })
 
-export const updateProject = (id: number, data: { name?: string; color?: string }): Promise<Project> =>
+export const updateProject = (id: number, data: { name?: string; color?: string; modules?: string[] }): Promise<Project> =>
   request(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 
 export const deleteProject = (id: number): Promise<void> =>

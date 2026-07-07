@@ -2,6 +2,7 @@ export interface Project {
   id: number
   name: string
   color: string
+  modules: string[]
   created_at: string
 }
 

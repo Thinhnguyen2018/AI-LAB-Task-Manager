@@ -12,6 +12,7 @@ interface Props {
   onCreate: (task: TaskCreate) => Promise<void>
   activeProjectId?: number | null
   canEdit?: boolean
+  projectModules?: string[]
 }
 
 const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
@@ -81,10 +82,9 @@ const QUARTERS_DEF = [
 ]
 const ALL_MONTHS = QUARTERS_DEF.flatMap(q => q.months.map((m, i) => ({ month: m, label: q.labels[i], quarter: q.key })))
 
-export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId, canEdit = true }: Props) {
-  const savedModules = getProjectModules(activeProjectId)
+export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId, canEdit = true, projectModules = [] }: Props) {
   const taskModules = Array.from(new Set(tasks.map(t => t.module).filter(Boolean)))
-  const MODULES = Array.from(new Set([...savedModules, ...taskModules]))
+  const MODULES = Array.from(new Set([...projectModules, ...taskModules]))
   const [view, setView] = useState<ViewMode>('all')
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [creating, setCreating] = useState<Partial<{ quarter: string; month: number; week: number }> | null>(null)

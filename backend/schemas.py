@@ -5,15 +5,18 @@ from datetime import datetime
 class ProjectCreate(BaseModel):
     name: str
     color: str = "#16a34a"
+    modules: list[str] = []
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
+    modules: Optional[list[str]] = None
 
 class ProjectOut(BaseModel):
     id: int
     name: str
     color: str
+    modules: list[str] = []
     created_at: datetime
     model_config = {"from_attributes": True}
 

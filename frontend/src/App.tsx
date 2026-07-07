@@ -129,8 +129,7 @@ export default function App() {
   }
 
   const handleCreateProject = async (name: string, color: string, modules: string[]) => {
-    const proj = await createProject(name, color)
-    if (modules.length > 0) localStorage.setItem(`modules-${proj.id}`, JSON.stringify(modules))
+    const proj = await createProject(name, color, modules)
     setProjects(prev => [...prev, proj])
     setActiveProjectIdPersisted(proj.id)
     setShowNewProjectModal(false)
@@ -388,6 +387,7 @@ export default function App() {
             filterAssignee={filterAssignee}
             setFilterAssignee={setFilterAssignee}
             activeProjectId={activeProjectId}
+            projectModules={activeProject?.modules ?? []}
           />
         )}
 
@@ -401,7 +401,7 @@ export default function App() {
                 <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
               </div>
               <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
-                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} canEdit={isAdmin} />
+                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} canEdit={isAdmin} projectModules={activeProject?.modules ?? []} />
               </div>
               {tab === 'milestones' && (
                 <div style={{ padding: 24 }}>

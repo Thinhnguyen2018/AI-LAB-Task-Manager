@@ -54,9 +54,7 @@ export default function Settings({ project, tasks, currentUser, isAdmin, onProje
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0])
   const [savingGeneral, setSavingGeneral] = useState(false)
 
-  const [modules, setModulesState] = useState<string[]>(() =>
-    project ? getProjectModules(project.id) : DEFAULT_MODULES
-  )
+  const [modules, setModulesState] = useState<string[]>(project?.modules ?? [])
   const [newModule, setNewModule] = useState('')
 
   if (!project) {
@@ -73,27 +71,28 @@ export default function Settings({ project, tasks, currentUser, isAdmin, onProje
     if (!name.trim()) return
     setSavingGeneral(true)
     try {
-      const updated = await updateProject(project.id, { name: name.trim(), color })
+      const updated = await updateProject(project.id, { name: name.trim(), color, modules })
       onProjectChange(updated)
     } finally {
       setSavingGeneral(false)
     }
   }
 
-  const handleAddModule = () => {
+  const handleAddModule = async () => {
     const m = newModule.trim()
     if (!m || modules.includes(m)) return
     const next = [...modules, m]
     setModulesState(next)
-    setProjectModules(project.id, next)
     setNewModule('')
+    const updated = await updateProject(project.id, { modules: next })
+    onProjectChange(updated)
   }
 
-  const handleRemoveModule = (m: string) => {
-    if (modules.length <= 1) return
+  const handleRemoveModule = async (m: string) => {
     const next = modules.filter(x => x !== m)
     setModulesState(next)
-    setProjectModules(project.id, next)
+    const updated = await updateProject(project.id, { modules: next })
+    onProjectChange(updated)
   }
 
   const exportCSV = () => {

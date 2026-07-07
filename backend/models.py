@@ -7,6 +7,7 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     color = Column(String(20), nullable=False, default="#16a34a")
+    modules = Column(Text, nullable=False, default="[]")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Task(Base):

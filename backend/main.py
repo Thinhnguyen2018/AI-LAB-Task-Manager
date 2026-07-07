@@ -59,6 +59,7 @@ with engine.connect() as conn:
     for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)"), ("project_id", "INTEGER")]:
         conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {coltype}"))
     conn.execute(text("ALTER TABLE notes ADD COLUMN IF NOT EXISTS project_id INTEGER"))
+    conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS modules TEXT NOT NULL DEFAULT '[]'"))
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS notes (
             id VARCHAR(50) PRIMARY KEY,
@@ -310,29 +311,44 @@ async def upload_kb_doc(
 @app.get("/projects", response_model=List[schemas.ProjectOut])
 def get_projects(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     member_project_ids = [m.project_id for m in db.query(models.ProjectMember).filter_by(user_id=current_user.id).all()]
-    return db.query(models.Project).filter(models.Project.id.in_(member_project_ids)).order_by(models.Project.created_at).all()
+    projects = db.query(models.Project).filter(models.Project.id.in_(member_project_ids)).order_by(models.Project.created_at).all()
+    return [_project_out(p) for p in projects]
 
 @app.post("/projects", response_model=schemas.ProjectOut)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_project = models.Project(**project.model_dump())
+    import json
+    data = project.model_dump()
+    data['modules'] = json.dumps(data.get('modules', []))
+    db_project = models.Project(**data)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
     db.add(models.ProjectMember(project_id=db_project.id, user_id=current_user.id, role="admin"))
     db.commit()
-    return db_project
+    return _project_out(db_project)
+
+def _project_out(p: models.Project) -> schemas.ProjectOut:
+    import json
+    mods = []
+    try: mods = json.loads(p.modules or "[]")
+    except: pass
+    return schemas.ProjectOut(id=p.id, name=p.name, color=p.color, modules=mods, created_at=p.created_at)
 
 @app.patch("/projects/{project_id}", response_model=schemas.ProjectOut)
 def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    import json
     require_project_admin(db, project_id, current_user)
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=404, detail="Project not found")
-    for key, value in project.model_dump(exclude_unset=True).items():
+    data = project.model_dump(exclude_unset=True)
+    if 'modules' in data:
+        data['modules'] = json.dumps(data['modules'])
+    for key, value in data.items():
         setattr(db_project, key, value)
     db.commit()
     db.refresh(db_project)
-    return db_project
+    return _project_out(db_project)
 
 @app.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):

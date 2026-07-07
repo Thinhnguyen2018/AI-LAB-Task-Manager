@@ -1,7 +1,5 @@
 import { Task } from '../types'
 
-const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
-
 interface Props {
   tasks: Task[]
   search: string
@@ -13,6 +11,7 @@ interface Props {
   filterAssignee: string
   setFilterAssignee: (v: string) => void
   activeProjectId?: number | null
+  projectModules?: string[]
 }
 const STATUSES = ['pending', 'progress', 'done']
 
@@ -21,18 +20,11 @@ export default function FilterBar({
   filterModule, setFilterModule,
   filterStatus, setFilterStatus,
   filterAssignee, setFilterAssignee,
-  activeProjectId,
+  projectModules = [],
 }: Props) {
   const assignees = Array.from(new Set(tasks.map(t => t.assignee).filter(Boolean))) as string[]
-  const MODULES: string[] = (() => {
-    try {
-      if (activeProjectId) {
-        const stored = localStorage.getItem(`modules-${activeProjectId}`)
-        if (stored) return JSON.parse(stored)
-      }
-      return DEFAULT_MODULES
-    } catch { return DEFAULT_MODULES }
-  })()
+  const taskModules = Array.from(new Set(tasks.map(t => t.module).filter(Boolean)))
+  const MODULES = Array.from(new Set([...projectModules, ...taskModules]))
 
   const sel: React.CSSProperties = {
     padding: '6px 10px', borderRadius: 6,

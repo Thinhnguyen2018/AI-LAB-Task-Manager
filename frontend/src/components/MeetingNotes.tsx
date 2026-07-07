@@ -13,6 +13,7 @@ type Action = 'create' | 'update' | 'skip'
 
 interface ExtractedItem {
   title: string
+  description: string
   assignee: string
   action: Action
   matchedTask: Task | null
@@ -173,17 +174,17 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
       if (!res.ok) throw new Error(`API error ${res.status}`)
       const data = await res.json()
       const rawTasks = data.tasks ?? []
-      const extracted: { title: string; assignee: string }[] = rawTasks.map((t: any) =>
-        typeof t === 'string' ? { title: t, assignee: '' } : { title: t.title ?? '', assignee: t.assignee ?? '' }
+      const extracted: { title: string; description: string; assignee: string }[] = rawTasks.map((t: any) =>
+        typeof t === 'string' ? { title: t, description: '', assignee: '' } : { title: t.title ?? '', description: t.description ?? '', assignee: t.assignee ?? '' }
       ).filter((t: { title: string }) => t.title.trim())
-      const matched: ExtractedItem[] = extracted.map(({ title, assignee }) => {
+      const matched: ExtractedItem[] = extracted.map(({ title, description, assignee }) => {
         let best: Task | null = null, bestScore = 0
         for (const t of tasks) {
           const s = matchScore(title, t.title)
           if (s > bestScore) { bestScore = s; best = t }
         }
         const isMatch = bestScore >= 0.4
-        return { title, assignee, action: isMatch ? 'update' : 'create', matchedTask: isMatch ? best : null, newStatus: isMatch ? best!.status : 'pending' }
+        return { title, description, assignee, action: isMatch ? 'update' : 'create', matchedTask: isMatch ? best : null, newStatus: isMatch ? best!.status : 'pending' }
       })
       setItems(matched)
     } catch (e: any) {
@@ -214,7 +215,7 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
           await updateTask(item.matchedTask.id, { status: item.newStatus, note_id: selected })
           appliedIds.push(item.matchedTask.id)
         } else if (item.action === 'create') {
-          const created = await createTask({ title: item.title, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected, assignee: item.assignee || undefined })
+          const created = await createTask({ title: item.title, description: item.description || undefined, module: 'GreenRAG', status: item.newStatus, quarter, year, month, note_id: selected, assignee: item.assignee || undefined })
           appliedIds.push(created.id)
         }
       }

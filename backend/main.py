@@ -259,7 +259,7 @@ async def extract_tasks(req: ExtractRequest):
                 "role": "assistant",
                 "content": (
                     "You are an expert at extracting actionable work items from Vietnamese and English meeting notes. "
-                    "Return ONLY a valid JSON array of objects with keys 'title' and 'assignee'. "
+                    "Return ONLY a valid JSON array of objects with keys 'title', 'description', and 'assignee'. "
                     "No markdown, no explanation, just the raw JSON array."
                 ),
             },
@@ -268,14 +268,14 @@ async def extract_tasks(req: ExtractRequest):
                 "content": (
                     "Extract the top-level actionable tasks from the meeting notes below.\n"
                     "IMPORTANT rules:\n"
-                    "- Each task should be a distinct, standalone work item — typically a sentence or line that directly states something to do.\n"
-                    "- Bullet sub-items that are breakdown details or specifications of a parent task should NOT become separate tasks — merge them into the parent task title.\n"
-                    "- Example: if the note says 'Tạo data sample (10,000 sample)' followed by sub-bullets '5,000 AI Gen', '1,000 keyword...', extract ONE task 'Tạo data sample 10,000 samples' — do NOT create separate tasks for each sub-bullet.\n"
-                    "- Include follow-ups, investigations, and action items that imply real work.\n"
-                    "- Keep task titles in Vietnamese if the note is in Vietnamese.\n"
-                    "For 'assignee': extract the person or team name mentioned for that task (in parentheses, after a dash, or implied by context). "
-                    "If no assignee is mentioned, use empty string ''.\n"
-                    "Return ONLY a JSON array of objects: [{\"title\": \"...\", \"assignee\": \"...\"}, ...]\n\n"
+                    "- Each task should be a distinct, standalone work item.\n"
+                    "- 'title': short and concise (5-8 words max). Do NOT include sub-item details or long parenthetical breakdowns in the title.\n"
+                    "- 'description': put the breakdown details, sub-bullets, or specifications here. If the note has sub-bullets under a task, list them in description. If no details, use empty string ''.\n"
+                    "- Example: note says 'Tạo data sample (10,000 sample)' with sub-bullets '5,000 AI Gen', '1,000 keyword ngành', '2,000 câu 5-10 từ' → title: 'Tạo data sample 10,000 samples', description: '- 5,000 AI Gen\\n- 1,000 keyword ngành\\n- 2,000 câu 5-10 từ'\n"
+                    "- Bullet sub-items are details of their parent, NOT separate tasks.\n"
+                    "- Keep Vietnamese if the note is in Vietnamese.\n"
+                    "For 'assignee': extract the person or team name (in parentheses, after a dash, or implied). Use empty string '' if none.\n"
+                    "Return ONLY a JSON array: [{\"title\": \"...\", \"description\": \"...\", \"assignee\": \"...\"}, ...]\n\n"
                     f"Meeting notes:\n{req.content}"
                 ),
             },

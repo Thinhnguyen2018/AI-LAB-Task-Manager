@@ -118,18 +118,31 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate }: Props) 
   // ── Get tasks for a cell ──
   const getColTasks = (module: string, col: Col): Task[] => {
     if (view === 'week') {
-      // tasks with current week number
-      return tasks.filter(t => t.module === module && t.week === TODAY_WEEK)
-        .filter(t => {
-          if (!t.deadline) return col.key === '1' // Mon if no deadline
+      // Show tasks for current month, placed by deadline day of week
+      return tasks.filter(t => {
+        if (t.module !== module) return false
+        if (t.deadline) {
           const d = new Date(t.deadline)
+          const weekNum = getWeekNumber(d)
+          if (weekNum !== TODAY_WEEK) return false
           const dayOfWeek = d.getDay() || 7
           return String(dayOfWeek) === col.key
-        })
+        }
+        // Tasks without deadline: show in current month, placed on Monday
+        return t.month === TODAY_MONTH && t.year === TODAY_YEAR && col.key === '1'
+      })
     }
     if (view === 'month') {
       const weekNum = Number(col.key)
-      return tasks.filter(t => t.module === module && t.month === TODAY_MONTH && t.week === weekNum)
+      return tasks.filter(t => {
+        if (t.module !== module) return false
+        if (t.month !== TODAY_MONTH || t.year !== TODAY_YEAR) return false
+        if (t.deadline) {
+          return getWeekNumber(new Date(t.deadline)) === weekNum
+        }
+        // Tasks without deadline: show in current week column
+        return weekNum === TODAY_WEEK
+      })
     }
     if (view === 'quarter' || view === 'all') {
       const month = Number(col.key)

@@ -172,7 +172,10 @@ export default function MeetingNotes({ tasks, onTasksChange, activeProjectId }: 
       })
       if (!res.ok) throw new Error(`API error ${res.status}`)
       const data = await res.json()
-      const extracted: { title: string; assignee: string }[] = data.tasks ?? []
+      const rawTasks = data.tasks ?? []
+      const extracted: { title: string; assignee: string }[] = rawTasks.map((t: any) =>
+        typeof t === 'string' ? { title: t, assignee: '' } : { title: t.title ?? '', assignee: t.assignee ?? '' }
+      ).filter((t: { title: string }) => t.title.trim())
       const matched: ExtractedItem[] = extracted.map(({ title, assignee }) => {
         let best: Task | null = null, bestScore = 0
         for (const t of tasks) {

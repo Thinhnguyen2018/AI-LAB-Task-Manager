@@ -82,7 +82,9 @@ const QUARTERS_DEF = [
 const ALL_MONTHS = QUARTERS_DEF.flatMap(q => q.months.map((m, i) => ({ month: m, label: q.labels[i], quarter: q.key })))
 
 export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId, canEdit = true }: Props) {
-  const MODULES = getProjectModules(activeProjectId)
+  const savedModules = getProjectModules(activeProjectId)
+  const taskModules = Array.from(new Set(tasks.map(t => t.module).filter(Boolean)))
+  const MODULES = Array.from(new Set([...savedModules, ...taskModules]))
   const [view, setView] = useState<ViewMode>('all')
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [creating, setCreating] = useState<Partial<{ quarter: string; month: number; week: number }> | null>(null)

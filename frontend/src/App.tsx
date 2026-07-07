@@ -137,23 +137,6 @@ export default function App() {
               >+</button>
             </div>
 
-            {/* All tasks option */}
-            <button
-              onClick={() => setActiveProjectId(null)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                width: '100%', padding: '6px 16px',
-                background: activeProjectId === null ? '#1f2937' : 'none',
-                border: 'none', cursor: 'pointer',
-                color: activeProjectId === null ? '#f9fafb' : '#9ca3af',
-                fontSize: 13, textAlign: 'left',
-                borderLeft: activeProjectId === null ? '3px solid #4b5563' : '3px solid transparent',
-              }}
-            >
-              <span style={{ fontSize: 14 }}>◈</span>
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>All tasks</span>
-            </button>
-
             {projects.map(p => (
               <div key={p.id} style={{ position: 'relative' }}>
                 {editingProjectId === p.id ? (

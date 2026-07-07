@@ -65,6 +65,8 @@ export default function App() {
       const [data, projs] = await Promise.all([getTasks(), getProjects()])
       setTasks(data)
       setProjects(projs)
+      // Auto-select first project if none selected
+      if (projs.length > 0) setActiveProjectId(prev => prev ?? projs[0].id)
       setError(null)
     } catch (e: any) {
       setError(e.message)

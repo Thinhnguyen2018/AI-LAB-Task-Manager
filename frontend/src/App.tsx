@@ -15,13 +15,25 @@ import { AuthToken } from './api'
 
 type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'knowledge-base' | 'settings'
 
-const NAV: { key: Tab; label: string; icon: string }[] = [
-  { key: 'board', label: 'Board', icon: '▦' },
-  { key: 'roadmap', label: 'Roadmap', icon: '◫' },
-  { key: 'milestones', label: 'Milestones', icon: '◈' },
-  { key: 'dashboard', label: 'Dashboard', icon: '◉' },
-  { key: 'meeting-notes', label: 'Meeting Notes', icon: '◧' },
-  { key: 'knowledge-base', label: 'Knowledge Base', icon: '◭' },
+const NAV: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  { key: 'board', label: 'Board', icon: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="14" rx="1.5"/><rect x="9" y="1" width="6" height="9" rx="1.5"/></svg>
+  )},
+  { key: 'roadmap', label: 'Roadmap', icon: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="3" width="9" height="2.5" rx="1.25"/><rect x="1" y="6.75" width="14" height="2.5" rx="1.25"/><rect x="5" y="10.5" width="10" height="2.5" rx="1.25"/></svg>
+  )},
+  { key: 'milestones', label: 'Milestones', icon: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M3.2 12.8l1.4-1.4M11.4 4.6l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+  )},
+  { key: 'dashboard', label: 'Dashboard', icon: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6.5" height="6.5" rx="1.5"/><rect x="8.5" y="1" width="6.5" height="3" rx="1.5"/><rect x="8.5" y="5.5" width="6.5" height="3" rx="1.5"/><rect x="1" y="8.5" width="14" height="6.5" rx="1.5"/></svg>
+  )},
+  { key: 'meeting-notes', label: 'Meeting Notes', icon: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="1" width="12" height="14" rx="2"/><line x1="5" y1="5" x2="11" y2="5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="11" x2="8" y2="11"/></svg>
+  )},
+  { key: 'knowledge-base', label: 'Knowledge Base', icon: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v3h3"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="11" x2="9" y2="11"/></svg>
+  )},
 ]
 
 const DEFAULT_MODULES = ['GreenRAG', 'Doc-Intelli', 'Infra', 'Integration', 'Milestone', 'Release']
@@ -208,188 +220,258 @@ export default function App() {
   )
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f3f4f6' }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: sidebarW, minWidth: sidebarW,
-        background: '#0f172a', display: 'flex', flexDirection: 'column',
-        transition: 'width 0.2s', overflow: 'hidden',
-        height: '100vh', position: 'sticky', top: 0,
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f4f5f7' }}>
+      {/* Top global header — Jira style */}
+      <header style={{
+        height: 48, background: '#0052cc', display: 'flex', alignItems: 'center',
+        padding: '0 16px', gap: 0, flexShrink: 0, zIndex: 100,
+        boxShadow: '0 1px 0 rgba(0,0,0,0.2)',
       }}>
         {/* Logo */}
-        <div style={{ padding: collapsed ? '12px 0' : '12px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #1e293b', flexShrink: 0 }}>
-          <div style={{ width: 26, height: 26, background: '#16a34a', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, color: '#fff', fontWeight: 700, marginLeft: collapsed ? 15 : 0 }}>T</div>
-          {!collapsed && <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>TaskFlow</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 24 }}>
+          <div style={{ width: 28, height: 28, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#0052cc', letterSpacing: '-1px' }}>T</span>
+          </div>
+          <span style={{ color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>TaskFlow</span>
         </div>
 
-        {/* Projects section */}
-        {!collapsed && (
-          <div style={{ borderBottom: '1px solid #1e293b', padding: '8px 0 4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px 4px' }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Projects</span>
-              <button
-                onClick={() => setShowNewProjectModal(true)}
-                title="New project"
-                style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}
-              >+</button>
-            </div>
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
 
-            {projects.map(p => (
-              <div
-                key={p.id}
-                style={{ position: 'relative' }}
-                onMouseEnter={() => setHoveredProjectId(p.id)}
-                onMouseLeave={() => setHoveredProjectId(null)}
-              >
-                {editingProjectId === p.id ? (
-                  <div style={{ display: 'flex', padding: '4px 8px', gap: 4 }}>
-                    <input
-                      autoFocus
-                      value={editingProjectName}
-                      onChange={e => setEditingProjectName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleRenameProject(p.id); if (e.key === 'Escape') setEditingProjectId(null) }}
-                      style={{ flex: 1, fontSize: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 4, color: '#f1f5f9', padding: '2px 6px', minWidth: 0 }}
-                    />
-                    <button onClick={() => handleRenameProject(p.id)} style={{ background: 'none', border: 'none', color: '#4ade80', cursor: 'pointer', fontSize: 12 }}>✓</button>
-                    <button onClick={() => setEditingProjectId(null)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 12 }}>✕</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setActiveProjectIdPersisted(p.id)}
-                    onDoubleClick={() => { setEditingProjectId(p.id); setEditingProjectName(p.name) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 7,
-                      width: '100%', height: 28, padding: '0 8px 0 12px',
-                      background: activeProjectId === p.id || hoveredProjectId === p.id ? '#1e293b' : 'none',
-                      border: 'none', cursor: 'pointer',
-                      color: activeProjectId === p.id ? '#f1f5f9' : '#94a3b8',
-                      fontSize: 13, fontWeight: 400, textAlign: 'left',
-                      borderLeft: activeProjectId === p.id ? '2px solid #16a34a' : '2px solid transparent',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, flexShrink: 0, display: 'inline-block' }} />
-                    <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDeleteProject(p.id) }}
-                      style={{
-                        background: 'none', border: 'none', color: '#475569', fontSize: 10, cursor: 'pointer',
-                        flexShrink: 0, padding: '0 2px', lineHeight: 1,
-                        opacity: hoveredProjectId === p.id ? 1 : 0,
-                        transition: 'opacity 0.1s',
-                      }}
-                      title="Delete project"
-                    >✕</button>
-                  </button>
-                )}
-              </div>
-            ))}
+        {/* Create button */}
+        <button
+          onClick={() => setShowNewProjectModal(true)}
+          style={{
+            background: '#fff', color: '#0052cc', border: 'none',
+            borderRadius: 3, padding: '0 12px', height: 30,
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            marginRight: 12, whiteSpace: 'nowrap',
+          }}
+        >+ New Project</button>
 
-          </div>
-        )}
-
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: '6px 0' }}>
-          {NAV.map(n => (
-            <button
-              key={n.key}
-              onClick={() => setTab(n.key)}
-              title={collapsed ? n.label : undefined}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                width: '100%', height: 28,
-                padding: collapsed ? '0' : '0 8px 0 12px',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                boxSizing: 'border-box',
-                background: tab === n.key ? '#1e293b' : 'none',
-                border: 'none', cursor: 'pointer',
-                color: tab === n.key ? '#e2e8f0' : '#64748b',
-                fontSize: 13, fontWeight: 400,
-                borderLeft: tab === n.key ? '2px solid #16a34a' : '2px solid transparent',
-                transition: 'background 0.1s, color 0.1s',
-              }}
-            >
-              <span style={{ fontSize: 14, flexShrink: 0, fontFamily: 'monospace' }}>{n.icon}</span>
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>}
-            </button>
-          ))}
-        </nav>
-
-        {/* Settings nav item — admin only */}
-        {isAdmin && <div style={{ padding: '4px 0', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
-          <button
-            onClick={() => setTab('settings')}
-            title={collapsed ? 'Settings' : undefined}
+        {/* User avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            title={`${currentUser.name} — ${userRole}`}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              width: '100%', height: 28,
-              padding: collapsed ? '0' : '0 8px 0 12px',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              boxSizing: 'border-box',
-              background: tab === 'settings' ? '#1e293b' : 'none',
-              border: 'none', cursor: 'pointer',
-              color: tab === 'settings' ? '#e2e8f0' : '#64748b',
-              fontSize: 13, fontWeight: 400,
-              borderLeft: tab === 'settings' ? '2px solid #16a34a' : '2px solid transparent',
+              width: 30, height: 30, borderRadius: '50%',
+              background: '#0747a6', border: '2px solid rgba(255,255,255,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'default', flexShrink: 0,
             }}
           >
-            <span style={{ fontSize: 14, flexShrink: 0, fontFamily: 'monospace' }}>⚙</span>
-            {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>Settings</span>}
-          </button>
-        </div>}
-
-        {/* User */}
-        <div style={{
-          padding: collapsed ? '0' : '0 12px',
-          borderTop: '1px solid #1e293b',
-          display: 'flex', alignItems: 'center', gap: 8,
-          justifyContent: collapsed ? 'center' : 'flex-start',
-          height: 40, flexShrink: 0,
-        }}>
-          <div style={{ width: 24, height: 24, background: '#1e293b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
             {currentUser.name.charAt(0).toUpperCase()}
           </div>
-          {!collapsed && (
-            <>
-              <span style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>{currentUser.name}</span>
-              <button
-                onClick={handleLogout}
-                title="Đăng xuất"
-                style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 14, flexShrink: 0, padding: '2px 4px', lineHeight: 1 }}
-              >↩</button>
-            </>
-          )}
+          <button
+            onClick={handleLogout}
+            title="Đăng xuất"
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }}
+          >↩</button>
         </div>
+      </header>
 
-        {/* Collapse button */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          style={{
-            position: 'absolute', top: 14, right: -12,
-            width: 22, height: 22, borderRadius: '50%',
-            background: '#1e293b', border: '1px solid #334155',
-            color: '#64748b', cursor: 'pointer', fontSize: 11,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 10,
-          }}
-        >
-          {collapsed ? '›' : '‹'}
-        </button>
-      </aside>
+      {/* Body: sidebar + content */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Sidebar */}
+        <aside style={{
+          width: sidebarW, minWidth: sidebarW,
+          background: '#fff',
+          borderRight: '1px solid #dfe1e6',
+          display: 'flex', flexDirection: 'column',
+          transition: 'width 0.2s', overflow: 'hidden',
+          height: 'calc(100vh - 48px)', position: 'sticky', top: 48,
+        }}>
+          {/* Active project header */}
+          {activeProject && !collapsed && (
+            <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #dfe1e6', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 6, background: activeProject.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
+                }}>
+                  {activeProject.name.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeProject.name}</div>
+                  <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1 }}>Software project</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {collapsed && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0', borderBottom: '1px solid #dfe1e6', flexShrink: 0 }}>
+              {activeProject && (
+                <div style={{ width: 30, height: 30, borderRadius: 6, background: activeProject.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                  {activeProject.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+          )}
 
-      {/* Main */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Top bar */}
-        <header style={{ background: '#ffffff', borderBottom: '1px solid #f1f5f9', padding: '0 24px', display: 'flex', alignItems: 'center', height: 44, gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Nav section label */}
+          {!collapsed && (
+            <div style={{ padding: '12px 16px 4px', flexShrink: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#6b778c', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Planning</span>
+            </div>
+          )}
+
+          {/* Nav items */}
+          <nav style={{ padding: '2px 8px', flexShrink: 0 }}>
+            {NAV.map(n => {
+              const active = tab === n.key
+              return (
+                <button
+                  key={n.key}
+                  onClick={() => setTab(n.key)}
+                  title={collapsed ? n.label : undefined}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', height: 36,
+                    padding: collapsed ? '0' : '0 10px',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    boxSizing: 'border-box',
+                    background: active ? '#e9f2ff' : 'none',
+                    border: 'none', cursor: 'pointer',
+                    color: active ? '#0052cc' : '#42526e',
+                    fontSize: 13, fontWeight: active ? 600 : 400,
+                    borderRadius: 4,
+                    transition: 'background 0.1s, color 0.1s',
+                  }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#f4f5f7' }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0, color: active ? '#0052cc' : '#6b778c' }}>{n.icon}</span>
+                  {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>}
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Settings — admin only */}
+          {isAdmin && (
+            <div style={{ padding: '2px 8px', flexShrink: 0 }}>
+              <button
+                onClick={() => setTab('settings')}
+                title={collapsed ? 'Settings' : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  width: '100%', height: 36,
+                  padding: collapsed ? '0' : '0 10px',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  boxSizing: 'border-box',
+                  background: tab === 'settings' ? '#e9f2ff' : 'none',
+                  border: 'none', cursor: 'pointer',
+                  color: tab === 'settings' ? '#0052cc' : '#42526e',
+                  fontSize: 13, fontWeight: tab === 'settings' ? 600 : 400,
+                  borderRadius: 4,
+                }}
+                onMouseEnter={e => { if (tab !== 'settings') (e.currentTarget as HTMLButtonElement).style.background = '#f4f5f7' }}
+                onMouseLeave={e => { if (tab !== 'settings') (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0, color: tab === 'settings' ? '#0052cc' : '#6b778c' }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M3.2 12.8l1.4-1.4M11.4 4.6l1.4-1.4"/></svg>
+                </span>
+                {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>Project Settings</span>}
+              </button>
+            </div>
+          )}
+
+          <div style={{ flex: 1 }} />
+
+          {/* Projects section */}
+          {!collapsed && (
+            <div style={{ borderTop: '1px solid #dfe1e6', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 4px' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#6b778c', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Your Projects</span>
+                <button
+                  onClick={() => setShowNewProjectModal(true)}
+                  title="New project"
+                  style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center' }}
+                >+</button>
+              </div>
+              <div style={{ padding: '2px 8px 8px' }}>
+                {projects.map(p => (
+                  <div
+                    key={p.id}
+                    style={{ position: 'relative' }}
+                    onMouseEnter={() => setHoveredProjectId(p.id)}
+                    onMouseLeave={() => setHoveredProjectId(null)}
+                  >
+                    {editingProjectId === p.id ? (
+                      <div style={{ display: 'flex', padding: '3px 4px', gap: 4 }}>
+                        <input
+                          autoFocus
+                          value={editingProjectName}
+                          onChange={e => setEditingProjectName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRenameProject(p.id); if (e.key === 'Escape') setEditingProjectId(null) }}
+                          style={{ flex: 1, fontSize: 12, background: '#fff', border: '2px solid #0052cc', borderRadius: 3, color: '#172b4d', padding: '2px 6px', minWidth: 0, outline: 'none' }}
+                        />
+                        <button onClick={() => handleRenameProject(p.id)} style={{ background: 'none', border: 'none', color: '#36b37e', cursor: 'pointer', fontSize: 13 }}>✓</button>
+                        <button onClick={() => setEditingProjectId(null)} style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 13 }}>✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setActiveProjectIdPersisted(p.id)}
+                        onDoubleClick={() => { setEditingProjectId(p.id); setEditingProjectName(p.name) }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          width: '100%', height: 32, padding: '0 8px 0 10px',
+                          background: activeProjectId === p.id ? '#e9f2ff' : hoveredProjectId === p.id ? '#f4f5f7' : 'none',
+                          border: 'none', cursor: 'pointer',
+                          color: activeProjectId === p.id ? '#0052cc' : '#42526e',
+                          fontSize: 13, fontWeight: activeProjectId === p.id ? 600 : 400, textAlign: 'left',
+                          borderRadius: 4, boxSizing: 'border-box',
+                        }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0, display: 'inline-block' }} />
+                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                        {hoveredProjectId === p.id && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDeleteProject(p.id) }}
+                            style={{ background: 'none', border: 'none', color: '#6b778c', fontSize: 12, cursor: 'pointer', flexShrink: 0, padding: '0 2px', lineHeight: 1 }}
+                            title="Delete project"
+                          >✕</button>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            style={{
+              position: 'absolute', top: 60, right: -12,
+              width: 22, height: 22, borderRadius: '50%',
+              background: '#fff', border: '1px solid #dfe1e6',
+              color: '#6b778c', cursor: 'pointer', fontSize: 11,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+            }}
+          >
+            {collapsed ? '›' : '‹'}
+          </button>
+        </aside>
+
+        {/* Main */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Sub-header */}
+          <div style={{ background: '#fff', borderBottom: '1px solid #dfe1e6', padding: '0 24px', display: 'flex', alignItems: 'center', height: 40, gap: 8, flexShrink: 0 }}>
             {activeProject && (
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: activeProject.color, display: 'inline-block', flexShrink: 0 }} />
+              <>
+                <span style={{ fontSize: 12, color: '#6b778c' }}>{activeProject.name}</span>
+                <span style={{ color: '#dfe1e6' }}>/</span>
+              </>
             )}
-            <h1 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0f172a' }}>
-              {tab === 'settings' ? 'Settings' : `${activeProject && tab !== 'knowledge-base' ? `${activeProject.name} — ` : activeProject ? `${activeProject.name} — ` : ''}${NAV.find(n => n.key === tab)?.label ?? tab}`}
-            </h1>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#172b4d' }}>
+              {tab === 'settings' ? 'Project Settings' : NAV.find(n => n.key === tab)?.label ?? tab}
+            </span>
+            {isAdmin && <span style={{ marginLeft: 8, fontSize: 11, background: '#e9f2ff', color: '#0052cc', borderRadius: 3, padding: '2px 7px', fontWeight: 600 }}>Admin</span>}
           </div>
-        </header>
 
         {/* Filter bar — only for task tabs */}
         {(tab === 'board' || tab === 'roadmap') && (
@@ -457,6 +539,7 @@ export default function App() {
             </>
           )}
         </main>
+        </div>
       </div>
       {showNewProjectModal && (
         <NewProjectModal

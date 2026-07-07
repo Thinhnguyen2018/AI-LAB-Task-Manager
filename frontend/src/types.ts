@@ -1,3 +1,10 @@
+export interface Project {
+  id: number
+  name: string
+  color: string
+  created_at: string
+}
+
 export interface Task {
   id: number
   title: string
@@ -11,6 +18,7 @@ export interface Task {
   month?: number
   week?: number
   note_id?: string
+  project_id?: number
 }
 
 export interface Note {

@@ -2,6 +2,13 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from database import Base
 
+class Project(Base):
+    __tablename__ = "projects"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    color = Column(String(20), nullable=False, default="#16a34a")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 class Task(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
@@ -16,6 +23,7 @@ class Task(Base):
     month = Column(Integer)
     week = Column(Integer)
     note_id = Column(String(50))
+    project_id = Column(Integer, nullable=True)
 
 class Note(Base):
     __tablename__ = "notes"

@@ -11,9 +11,9 @@ from database import engine, get_db, Base
 
 Base.metadata.create_all(bind=engine)
 
-# Auto-migrate: add month, week columns if missing; create notes table
+# Auto-migrate: add columns if missing; create tables
 with engine.connect() as conn:
-    for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)")]:
+    for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)"), ("project_id", "INTEGER")]:
         conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {coltype}"))
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS notes (
@@ -22,6 +22,14 @@ with engine.connect() as conn:
             content TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            color VARCHAR(20) NOT NULL DEFAULT '#16a34a',
+            created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
     conn.commit()
@@ -116,6 +124,37 @@ def delete_note(note_id: str, db: Session = Depends(get_db)):
     if not db_note:
         raise HTTPException(status_code=404, detail="Note not found")
     db.delete(db_note)
+    db.commit()
+
+@app.get("/projects", response_model=List[schemas.ProjectOut])
+def get_projects(db: Session = Depends(get_db)):
+    return db.query(models.Project).order_by(models.Project.created_at).all()
+
+@app.post("/projects", response_model=schemas.ProjectOut)
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
+    db_project = models.Project(**project.model_dump())
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@app.patch("/projects/{project_id}", response_model=schemas.ProjectOut)
+def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    for key, value in project.model_dump(exclude_unset=True).items():
+        setattr(db_project, key, value)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@app.delete("/projects/{project_id}", status_code=204)
+def delete_project(project_id: int, db: Session = Depends(get_db)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(db_project)
     db.commit()
 
 class ExtractRequest(BaseModel):

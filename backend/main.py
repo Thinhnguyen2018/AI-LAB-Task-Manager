@@ -260,21 +260,19 @@ async def extract_tasks(req: ExtractRequest):
                 "content": (
                     "You are an expert at extracting actionable work items from Vietnamese and English meeting notes. "
                     "Return ONLY a valid JSON array of objects with keys 'title' and 'assignee'. "
-                    "No markdown, no explanation, just the raw JSON array. "
-                    "Be thorough and inclusive — extract EVERY item that implies work to be done, even if implicit."
+                    "No markdown, no explanation, just the raw JSON array."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "Extract ALL actionable tasks from the meeting notes below. Include:\n"
-                    "- Explicit action items and TODOs\n"
-                    "- Features or work being discussed that needs to be done\n"
-                    "- Follow-ups, investigations, decisions pending\n"
-                    "- Any item mentioning a person doing something\n"
-                    "- Any change, migration, or implementation mentioned\n"
-                    "Do NOT skip items just because they are written as descriptions or discussion points — if it implies work, include it.\n"
-                    "Write each task as a short, clear action title (keep Vietnamese if the note is in Vietnamese).\n"
+                    "Extract the top-level actionable tasks from the meeting notes below.\n"
+                    "IMPORTANT rules:\n"
+                    "- Each task should be a distinct, standalone work item — typically a sentence or line that directly states something to do.\n"
+                    "- Bullet sub-items that are breakdown details or specifications of a parent task should NOT become separate tasks — merge them into the parent task title.\n"
+                    "- Example: if the note says 'Tạo data sample (10,000 sample)' followed by sub-bullets '5,000 AI Gen', '1,000 keyword...', extract ONE task 'Tạo data sample 10,000 samples' — do NOT create separate tasks for each sub-bullet.\n"
+                    "- Include follow-ups, investigations, and action items that imply real work.\n"
+                    "- Keep task titles in Vietnamese if the note is in Vietnamese.\n"
                     "For 'assignee': extract the person or team name mentioned for that task (in parentheses, after a dash, or implied by context). "
                     "If no assignee is mentioned, use empty string ''.\n"
                     "Return ONLY a JSON array of objects: [{\"title\": \"...\", \"assignee\": \"...\"}, ...]\n\n"

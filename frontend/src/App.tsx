@@ -350,6 +350,7 @@ export default function App() {
             setFilterStatus={setFilterStatus}
             filterAssignee={filterAssignee}
             setFilterAssignee={setFilterAssignee}
+            activeProjectId={activeProjectId}
           />
         )}
 

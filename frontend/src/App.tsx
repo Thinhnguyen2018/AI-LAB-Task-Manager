@@ -301,8 +301,8 @@ export default function App() {
           ))}
         </nav>
 
-        {/* Settings nav item */}
-        <div style={{ padding: '8px 0', borderTop: '1px solid #1f2937', flexShrink: 0 }}>
+        {/* Settings nav item — admin only */}
+        {isAdmin && <div style={{ padding: '8px 0', borderTop: '1px solid #1f2937', flexShrink: 0 }}>
           <button
             onClick={() => setTab('settings')}
             title={collapsed ? 'Settings' : undefined}
@@ -320,7 +320,7 @@ export default function App() {
             <span style={{ fontSize: 16, flexShrink: 0 }}>⚙</span>
             {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>Settings</span>}
           </button>
-        </div>
+        </div>}
 
         {/* User */}
         <div style={{ padding: collapsed ? '12px 0' : '12px 16px', borderTop: '1px solid #1f2937', display: 'flex', alignItems: 'center', gap: 8, justifyContent: collapsed ? 'center' : 'flex-start', flexShrink: 0 }}>

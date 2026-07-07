@@ -10,6 +10,7 @@ import MeetingNotes from './components/MeetingNotes'
 import Settings from './components/Settings'
 import KnowledgeBase from './components/KnowledgeBase'
 import AuthPage from './components/AuthPage'
+import NewProjectModal from './components/NewProjectModal'
 import { AuthToken } from './api'
 
 type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'knowledge-base' | 'settings'
@@ -74,9 +75,7 @@ export default function App() {
     else localStorage.setItem('activeProjectId', String(id))
     setTab('board')
   }
-  const [showNewProject, setShowNewProject] = useState(false)
-  const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0])
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null)
   const [editingProjectName, setEditingProjectName] = useState('')
 
@@ -129,14 +128,12 @@ export default function App() {
     setTasks(prev => prev.filter(t => t.project_id !== projectId))
   }
 
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return
-    const proj = await createProject(newProjectName.trim(), newProjectColor)
+  const handleCreateProject = async (name: string, color: string, modules: string[]) => {
+    const proj = await createProject(name, color)
+    if (modules.length > 0) localStorage.setItem(`modules-${proj.id}`, JSON.stringify(modules))
     setProjects(prev => [...prev, proj])
     setActiveProjectIdPersisted(proj.id)
-    setNewProjectName('')
-    setNewProjectColor(PROJECT_COLORS[0])
-    setShowNewProject(false)
+    setShowNewProjectModal(false)
   }
 
   const handleRenameProject = async (id: number) => {
@@ -188,14 +185,7 @@ export default function App() {
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button
-            onClick={async () => {
-              const name = prompt('Tên project:')
-              if (!name?.trim()) return
-              const { createProject } = await import('./api')
-              const p = await createProject(name.trim(), '#16a34a')
-              setProjects([p])
-              setActiveProjectIdPersisted(p.id)
-            }}
+            onClick={() => setShowNewProjectModal(true)}
             style={{ padding: '11px 0', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
           >
             + Tạo project mới
@@ -231,7 +221,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 6px' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Projects</span>
               <button
-                onClick={() => setShowNewProject(v => !v)}
+                onClick={() => setShowNewProjectModal(true)}
                 title="New project"
                 style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}
               >+</button>
@@ -277,35 +267,6 @@ export default function App() {
               </div>
             ))}
 
-            {showNewProject && (
-              <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <input
-                  autoFocus
-                  placeholder="Project name"
-                  value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleCreateProject(); if (e.key === 'Escape') setShowNewProject(false) }}
-                  style={{ fontSize: 12, background: '#1f2937', border: '1px solid #374151', borderRadius: 4, color: '#f9fafb', padding: '4px 8px' }}
-                />
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {PROJECT_COLORS.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setNewProjectColor(c)}
-                      style={{
-                        width: 16, height: 16, borderRadius: '50%', background: c,
-                        border: newProjectColor === c ? '2px solid #fff' : '2px solid transparent',
-                        cursor: 'pointer', padding: 0,
-                      }}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={handleCreateProject}
-                  style={{ background: newProjectColor, border: 'none', borderRadius: 4, color: '#fff', fontSize: 12, padding: '4px 0', cursor: 'pointer', fontWeight: 600 }}
-                >Create</button>
-              </div>
-            )}
           </div>
         )}
 
@@ -473,6 +434,12 @@ export default function App() {
           )}
         </main>
       </div>
+      {showNewProjectModal && (
+        <NewProjectModal
+          onConfirm={handleCreateProject}
+          onClose={() => setShowNewProjectModal(false)}
+        />
+      )}
     </div>
   )
 }

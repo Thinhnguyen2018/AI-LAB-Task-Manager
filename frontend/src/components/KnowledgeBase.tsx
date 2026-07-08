@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { KbDoc } from '../types'
 import { getKbDocs, updateKbDoc, deleteKbDoc } from '../api'
 
@@ -361,13 +362,41 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
                   />
                 </div>
               ) : (
-                /* Text content */
+                /* Text / Markdown content */
                 <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-                  <div style={{ background: '#fff', borderRadius: 4, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minHeight: 200 }}>
+                  <div style={{ background: '#fff', borderRadius: 4, padding: '24px 32px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minHeight: 200 }}>
                     {selectedDoc.content ? (
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8, color: '#172b4d', fontFamily: 'inherit' }}>
-                        {selectedDoc.content}
-                      </pre>
+                      selectedDoc.file_type === 'md' ? (
+                        <div style={{ fontSize: 14, lineHeight: 1.8, color: '#172b4d' }} className="md-body">
+                          <ReactMarkdown
+                            components={{
+                              h1: ({ children }) => <h1 style={{ fontSize: 24, fontWeight: 700, color: '#172b4d', margin: '0 0 16px', paddingBottom: 8, borderBottom: '2px solid #dfe1e6' }}>{children}</h1>,
+                              h2: ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 700, color: '#172b4d', margin: '24px 0 10px' }}>{children}</h2>,
+                              h3: ({ children }) => <h3 style={{ fontSize: 15, fontWeight: 600, color: '#172b4d', margin: '18px 0 8px' }}>{children}</h3>,
+                              p: ({ children }) => <p style={{ margin: '0 0 12px', lineHeight: 1.8 }}>{children}</p>,
+                              ul: ({ children }) => <ul style={{ margin: '0 0 12px', paddingLeft: 24 }}>{children}</ul>,
+                              ol: ({ children }) => <ol style={{ margin: '0 0 12px', paddingLeft: 24 }}>{children}</ol>,
+                              li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.7 }}>{children}</li>,
+                              code: ({ inline, children }: any) => inline
+                                ? <code style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 3, padding: '1px 5px', fontSize: 12, fontFamily: '"SF Mono","Fira Code",monospace', color: '#de350b' }}>{children}</code>
+                                : <pre style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 4, padding: '12px 16px', overflowX: 'auto', margin: '12px 0' }}><code style={{ fontSize: 13, fontFamily: '"SF Mono","Fira Code",monospace', color: '#172b4d' }}>{children}</code></pre>,
+                              blockquote: ({ children }) => <blockquote style={{ borderLeft: '4px solid #0052cc', margin: '12px 0', padding: '8px 16px', background: '#e9f2ff', borderRadius: '0 4px 4px 0', color: '#0747a6' }}>{children}</blockquote>,
+                              hr: () => <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />,
+                              strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#172b4d' }}>{children}</strong>,
+                              a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#0052cc', textDecoration: 'none', borderBottom: '1px solid #0052cc40' }}>{children}</a>,
+                              table: ({ children }) => <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>{children}</table></div>,
+                              th: ({ children }) => <th style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#172b4d' }}>{children}</th>,
+                              td: ({ children }) => <td style={{ border: '1px solid #dfe1e6', padding: '8px 12px', color: '#42526e' }}>{children}</td>,
+                            }}
+                          >
+                            {selectedDoc.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8, color: '#172b4d', fontFamily: 'inherit' }}>
+                          {selectedDoc.content}
+                        </pre>
+                      )
                     ) : (
                       <div style={{ color: '#6b778c', fontSize: 14, textAlign: 'center', marginTop: 40 }}>
                         <div style={{ fontSize: 32, marginBottom: 8 }}>{getFileIcon(selectedDoc.file_type)}</div>

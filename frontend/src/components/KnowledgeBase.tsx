@@ -406,7 +406,11 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
             {/* Content */}
             <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
               {isPdf && selected.file_url ? (
-                <iframe src={selected.file_url} style={{ width: '100%', height: '100%', border: 'none' }} title={selected.title} />
+                <iframe
+                  src={`${BASE}/kb/pdf-proxy?url=${encodeURIComponent(selected.file_url)}`}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                  title={selected.title}
+                />
               ) : isHtml && selected.content ? (
                 <iframe
                   srcDoc={selected.content}

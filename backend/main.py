@@ -154,6 +154,20 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+@app.get("/kb/pdf-proxy")
+async def pdf_proxy(url: str, current_user: models.User = Depends(get_current_user)):
+    from fastapi.responses import StreamingResponse
+    import httpx
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+        r = await client.get(url)
+        if r.status_code != 200:
+            raise HTTPException(status_code=502, detail="Failed to fetch PDF")
+    return StreamingResponse(
+        iter([r.content]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline"},
+    )
+
 # ── Auth endpoints ──
 
 @app.post("/auth/register", response_model=schemas.TokenOut)
@@ -403,16 +417,14 @@ async def upload_kb_doc(
     # ── Upload to Cloudinary ──
     resource_type = "image" if ext in ("png", "jpg", "jpeg", "gif") else "auto"
     try:
-        upload_kwargs = dict(
+        upload_result = cloudinary.uploader.upload(
+            raw,
             public_id=f"taskflow/kb/{int(time.time() * 1000)}_{title[:40]}",
             resource_type=resource_type,
             use_filename=True,
             unique_filename=True,
             overwrite=False,
         )
-        if ext == "pdf":
-            upload_kwargs["flags"] = "inline"
-        upload_result = cloudinary.uploader.upload(raw, **upload_kwargs)
         file_url = upload_result.get("secure_url", "")
         file_public_id = upload_result.get("public_id", "")
     except Exception as e:

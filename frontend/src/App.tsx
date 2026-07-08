@@ -461,68 +461,6 @@ export default function App() {
 
           <div style={{ flex: 1 }} />
 
-          {/* Projects section */}
-          {!collapsed && (
-            <div style={{ borderTop: '1px solid #dfe1e6', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 4px' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#6b778c', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Your Projects</span>
-                <button
-                  onClick={() => setShowNewProjectModal(true)}
-                  title="New project"
-                  style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center' }}
-                >+</button>
-              </div>
-              <div style={{ padding: '2px 8px 8px' }}>
-                {projects.map(p => (
-                  <div
-                    key={p.id}
-                    style={{ position: 'relative' }}
-                    onMouseEnter={() => setHoveredProjectId(p.id)}
-                    onMouseLeave={() => setHoveredProjectId(null)}
-                  >
-                    {editingProjectId === p.id ? (
-                      <div style={{ display: 'flex', padding: '3px 4px', gap: 4 }}>
-                        <input
-                          autoFocus
-                          value={editingProjectName}
-                          onChange={e => setEditingProjectName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleRenameProject(p.id); if (e.key === 'Escape') setEditingProjectId(null) }}
-                          style={{ flex: 1, fontSize: 12, background: '#fff', border: '2px solid #0052cc', borderRadius: 3, color: '#172b4d', padding: '2px 6px', minWidth: 0, outline: 'none' }}
-                        />
-                        <button onClick={() => handleRenameProject(p.id)} style={{ background: 'none', border: 'none', color: '#36b37e', cursor: 'pointer', fontSize: 13 }}>✓</button>
-                        <button onClick={() => setEditingProjectId(null)} style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 13 }}>✕</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setActiveProjectIdPersisted(p.id)}
-                        onDoubleClick={() => { setEditingProjectId(p.id); setEditingProjectName(p.name) }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          width: '100%', height: 32, padding: '0 8px 0 10px',
-                          background: activeProjectId === p.id ? '#e9f2ff' : hoveredProjectId === p.id ? '#f4f5f7' : 'none',
-                          border: 'none', cursor: 'pointer',
-                          color: activeProjectId === p.id ? '#0052cc' : '#42526e',
-                          fontSize: 13, fontWeight: activeProjectId === p.id ? 600 : 400, textAlign: 'left',
-                          borderRadius: 4, boxSizing: 'border-box',
-                        }}
-                      >
-                        <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, flexShrink: 0, display: 'inline-block' }} />
-                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                        {hoveredProjectId === p.id && (
-                          <button
-                            onClick={e => { e.stopPropagation(); handleDeleteProject(p.id) }}
-                            style={{ background: 'none', border: 'none', color: '#6b778c', fontSize: 12, cursor: 'pointer', flexShrink: 0, padding: '0 2px', lineHeight: 1 }}
-                            title="Delete project"
-                          >✕</button>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Collapse toggle */}
           <button
             onClick={() => setCollapsed(c => !c)}

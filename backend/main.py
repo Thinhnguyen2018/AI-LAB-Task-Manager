@@ -403,14 +403,16 @@ async def upload_kb_doc(
     # ── Upload to Cloudinary ──
     resource_type = "image" if ext in ("png", "jpg", "jpeg", "gif") else "auto"
     try:
-        upload_result = cloudinary.uploader.upload(
-            raw,
+        upload_kwargs = dict(
             public_id=f"taskflow/kb/{int(time.time() * 1000)}_{title[:40]}",
             resource_type=resource_type,
             use_filename=True,
             unique_filename=True,
             overwrite=False,
         )
+        if ext == "pdf":
+            upload_kwargs["flags"] = "inline"
+        upload_result = cloudinary.uploader.upload(raw, **upload_kwargs)
         file_url = upload_result.get("secure_url", "")
         file_public_id = upload_result.get("public_id", "")
     except Exception as e:

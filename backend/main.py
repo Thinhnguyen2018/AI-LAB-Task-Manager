@@ -440,12 +440,8 @@ async def upload_kb_doc(
     if ext in ("txt", "md", "html"):
         content = raw.decode("utf-8", errors="replace")
     elif ext == "pdf":
-        try:
-            from PyPDF2 import PdfReader
-            reader = PdfReader(io.BytesIO(raw))
-            content = "\n\n".join(p.extract_text() or "" for p in reader.pages).strip()
-        except Exception:
-            content = ""
+        import base64
+        content = base64.b64encode(raw).decode("ascii")
     elif ext == "docx":
         try:
             from docx import Document as DocxDocument

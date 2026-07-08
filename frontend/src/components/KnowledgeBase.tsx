@@ -273,6 +273,15 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
   const [pdfError, setPdfError] = useState(false)
   useEffect(() => { setNumPages(0); setPdfError(false) }, [selected?.id])
 
+  const pdfFile = isPdf && selected?.content
+    ? (() => {
+        const bin = atob(selected.content)
+        const arr = new Uint8Array(bin.length)
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+        return { data: arr }
+      })()
+    : null
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -424,10 +433,11 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
                     </div>
                   ) : (
                     <Document
-                      file={`${BASE}/kb/pdf-proxy?url=${encodeURIComponent(selected.file_url)}`}
+                      file={pdfFile ?? undefined}
                       onLoadSuccess={({ numPages }) => setNumPages(numPages)}
                       onLoadError={(err) => { console.error('[PDF]', err); setPdfError(true) }}
                       loading={<div style={{ color: '#fff', marginTop: 40 }}>Đang tải PDF...</div>}
+                      noData={<div style={{ color: '#fff', marginTop: 40, fontSize: 13 }}>Xóa PDF cũ và upload lại để xem preview</div>}
                     >
                       {Array.from({ length: numPages }, (_, i) => (
                         <Page

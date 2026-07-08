@@ -333,7 +333,6 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
                           {doc.title}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          <span style={{ fontSize: 11, color: '#36b37e', fontWeight: 700 }}>Completed</span>
                           <span style={{
                             fontSize: 11, fontWeight: 700,
                             color: getTypeColor(doc.file_type),

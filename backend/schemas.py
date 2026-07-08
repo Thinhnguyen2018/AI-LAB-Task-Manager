@@ -20,6 +20,21 @@ class ProjectOut(BaseModel):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+class BoardCreate(BaseModel):
+    name: str
+    project_id: int
+
+class BoardUpdate(BaseModel):
+    name: Optional[str] = None
+
+class BoardOut(BaseModel):
+    id: int
+    name: str
+    project_id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
 class TaskBase(BaseModel):
     title: str
     module: str
@@ -33,6 +48,7 @@ class TaskBase(BaseModel):
     week: Optional[int] = None
     note_id: Optional[str] = None
     project_id: Optional[int] = None
+    board_id: Optional[int] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -50,9 +66,11 @@ class TaskUpdate(BaseModel):
     week: Optional[int] = None
     note_id: Optional[str] = None
     project_id: Optional[int] = None
+    board_id: Optional[int] = None
 
 class TaskOut(TaskBase):
     id: int
+    board_id: Optional[int] = None
     model_config = {"from_attributes": True}
 
 class NoteCreate(BaseModel):

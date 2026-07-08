@@ -10,6 +10,14 @@ class Project(Base):
     modules = Column(Text, nullable=False, default="[]")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class Board(Base):
+    __tablename__ = "boards"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 class Task(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
@@ -25,6 +33,7 @@ class Task(Base):
     week = Column(Integer)
     note_id = Column(String(50))
     project_id = Column(Integer, nullable=True)
+    board_id = Column(Integer, ForeignKey("boards.id", ondelete="SET NULL"), nullable=True)
 
 class Note(Base):
     __tablename__ = "notes"

@@ -1,4 +1,4 @@
-import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc, KbCollection } from './types'
+import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc, KbCollection, Board } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -101,6 +101,15 @@ export const updateKbDoc = (id: string, data: { title?: string; content?: string
   request(`/kb/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteKbDoc = (id: string): Promise<void> =>
   request(`/kb/${id}`, { method: 'DELETE' })
+
+// Boards
+export const getBoards = (projectId: number): Promise<Board[]> => request(`/boards?project_id=${projectId}`)
+export const createBoard = (name: string, project_id: number): Promise<Board> =>
+  request('/boards', { method: 'POST', body: JSON.stringify({ name, project_id }) })
+export const updateBoard = (id: number, name: string): Promise<Board> =>
+  request(`/boards/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+export const deleteBoard = (id: number): Promise<void> =>
+  request(`/boards/${id}`, { method: 'DELETE' })
 
 export const getProjects = (): Promise<Project[]> => request('/projects')
 

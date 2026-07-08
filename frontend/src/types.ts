@@ -1,3 +1,11 @@
+export interface Board {
+  id: number
+  name: string
+  project_id: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Project {
   id: number
   name: string
@@ -20,6 +28,7 @@ export interface Task {
   week?: number
   note_id?: string
   project_id?: number
+  board_id?: number
 }
 
 export interface Note {

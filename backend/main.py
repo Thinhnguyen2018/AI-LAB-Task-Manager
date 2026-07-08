@@ -462,6 +462,37 @@ async def upload_kb_doc(
     db.refresh(db_doc)
     return db_doc
 
+## ── Boards ──────────────────────────────────────────────────────────────────
+
+@app.get("/boards", response_model=List[schemas.BoardOut])
+def get_boards(project_id: int, db: Session = Depends(get_db)):
+    return db.query(models.Board).filter_by(project_id=project_id).order_by(models.Board.created_at).all()
+
+@app.post("/boards", response_model=schemas.BoardOut)
+def create_board(body: schemas.BoardCreate, db: Session = Depends(get_db)):
+    board = models.Board(name=body.name, project_id=body.project_id)
+    db.add(board); db.commit(); db.refresh(board)
+    return board
+
+@app.patch("/boards/{board_id}", response_model=schemas.BoardOut)
+def update_board(board_id: int, body: schemas.BoardUpdate, db: Session = Depends(get_db)):
+    board = db.query(models.Board).filter_by(id=board_id).first()
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+    if body.name:
+        board.name = body.name
+    db.commit(); db.refresh(board)
+    return board
+
+@app.delete("/boards/{board_id}", status_code=204)
+def delete_board(board_id: int, db: Session = Depends(get_db)):
+    board = db.query(models.Board).filter_by(id=board_id).first()
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+    db.delete(board); db.commit()
+
+## ── Projects ─────────────────────────────────────────────────────────────────
+
 @app.get("/projects", response_model=List[schemas.ProjectOut])
 def get_projects(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     member_project_ids = [m.project_id for m in db.query(models.ProjectMember).filter_by(user_id=current_user.id).all()]
@@ -478,6 +509,7 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_project)
     db.add(models.ProjectMember(project_id=db_project.id, user_id=current_user.id, role="admin"))
+    db.add(models.Board(name="Main Board", project_id=db_project.id))
     db.commit()
     return _project_out(db_project)
 

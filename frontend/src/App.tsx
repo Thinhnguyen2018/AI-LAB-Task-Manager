@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Task, TaskCreate, TaskUpdate, Project } from './types'
-import { getTasks, createTask, updateTask, deleteTask, getProjects, createProject, updateProject, deleteProject, authMe, AuthUser, getMembers } from './api'
-import Board from './components/Board'
+import { Task, TaskCreate, TaskUpdate, Project, Board } from './types'
+import { getTasks, createTask, updateTask, deleteTask, getProjects, createProject, updateProject, deleteProject, authMe, AuthUser, getMembers, getBoards, createBoard, updateBoard, deleteBoard } from './api'
+import BoardView from './components/Board'
 import Roadmap from './components/Roadmap'
 import FilterBar from './components/FilterBar'
 import MilestonesTab from './components/MilestonesTab'
@@ -89,6 +89,12 @@ export default function App() {
     else localStorage.setItem('activeProjectId', String(id))
     setTab('board')
   }
+  // Boards
+  const [boards, setBoards] = useState<Board[]>([])
+  const [activeBoardId, setActiveBoardId] = useState<number | null>(null)
+  const [editingBoardId, setEditingBoardId] = useState<number | null>(null)
+  const [editingBoardName, setEditingBoardName] = useState('')
+
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [showProjectDropdown, setShowProjectDropdown] = useState(false)
   const [showAccountMenu, setShowAccountMenu] = useState(false)
@@ -147,8 +153,17 @@ export default function App() {
     }).catch(() => setUserRole('member'))
   }, [activeProjectId, currentUser])
 
+  // Load boards when project changes
+  useEffect(() => {
+    if (!activeProjectId) { setBoards([]); setActiveBoardId(null); return }
+    getBoards(activeProjectId).then(bs => {
+      setBoards(bs)
+      setActiveBoardId(prev => bs.find(b => b.id === prev) ? prev : (bs[0]?.id ?? null))
+    }).catch(() => setBoards([]))
+  }, [activeProjectId])
+
   const handleCreate = async (task: TaskCreate) => {
-    const created = await createTask({ ...task, project_id: activeProjectId ?? undefined })
+    const created = await createTask({ ...task, project_id: activeProjectId ?? undefined, board_id: activeBoardId ?? undefined })
     setTasks(prev => [...prev, created])
   }
 
@@ -189,12 +204,16 @@ export default function App() {
     if (activeProjectId === id) setActiveProjectIdPersisted(null)
   }
 
-  // Filter tasks by active project, then by search/filter
+  // Filter tasks by active project + active board, then by search/filter
   const projectTasks = activeProjectId === null
     ? tasks
     : tasks.filter(t => t.project_id === activeProjectId)
 
-  const filtered = projectTasks.filter(t => {
+  const boardTasks = activeBoardId === null
+    ? projectTasks
+    : projectTasks.filter(t => t.board_id === activeBoardId || (!t.board_id && boards.length > 0 && boards[0].id === activeBoardId))
+
+  const filtered = boardTasks.filter(t => {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
     if (filterModule && t.module !== filterModule) return false
     if (filterStatus && t.status !== filterStatus) return false
@@ -563,8 +582,72 @@ export default function App() {
           {error && <p style={{ color: '#dc2626', textAlign: 'center', padding: 24 }}>{error}</p>}
           {!loading && !error && (
             <>
-              <div style={{ display: tab === 'board' ? 'block' : 'none', padding: 24 }}>
-                <Board tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
+              <div style={{ display: tab === 'board' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+                {/* Board switcher */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 24px 0', borderBottom: '1px solid #dfe1e6', background: '#fff', flexShrink: 0 }}>
+                  {boards.map(b => (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                      {editingBoardId === b.id ? (
+                        <input
+                          autoFocus
+                          value={editingBoardName}
+                          onChange={e => setEditingBoardName(e.target.value)}
+                          onBlur={async () => {
+                            if (editingBoardName.trim() && editingBoardName !== b.name) {
+                              const updated = await updateBoard(b.id, editingBoardName.trim())
+                              setBoards(prev => prev.map(x => x.id === b.id ? updated : x))
+                            }
+                            setEditingBoardId(null)
+                          }}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingBoardId(null) }}
+                          style={{ fontSize: 13, fontWeight: 600, border: 'none', borderBottom: '2px solid #0052cc', outline: 'none', padding: '4px 6px', background: 'none', width: 120 }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setActiveBoardId(b.id)}
+                          onDoubleClick={() => { setEditingBoardId(b.id); setEditingBoardName(b.name) }}
+                          style={{
+                            padding: '7px 14px', fontSize: 13, fontWeight: activeBoardId === b.id ? 600 : 400,
+                            color: activeBoardId === b.id ? '#0052cc' : '#42526e',
+                            background: 'none', border: 'none',
+                            borderBottom: activeBoardId === b.id ? '2px solid #0052cc' : '2px solid transparent',
+                            cursor: 'pointer', whiteSpace: 'nowrap',
+                          }}
+                        >{b.name}</button>
+                      )}
+                      {isAdmin && boards.length > 1 && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Delete board "${b.name}"?`)) return
+                            await deleteBoard(b.id)
+                            const remaining = boards.filter(x => x.id !== b.id)
+                            setBoards(remaining)
+                            if (activeBoardId === b.id) setActiveBoardId(remaining[0]?.id ?? null)
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 12, padding: '0 2px', lineHeight: 1 }}
+                          title="Delete board"
+                        >×</button>
+                      )}
+                    </div>
+                  ))}
+                  {isAdmin && (
+                    <button
+                      onClick={async () => {
+                        if (!activeProjectId) return
+                        const name = prompt('Board name:')
+                        if (!name?.trim()) return
+                        const b = await createBoard(name.trim(), activeProjectId)
+                        setBoards(prev => [...prev, b])
+                        setActiveBoardId(b.id)
+                      }}
+                      style={{ padding: '7px 10px', fontSize: 13, color: '#6b778c', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '2px solid transparent' }}
+                      title="Add board"
+                    >+ Add board</button>
+                  )}
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+                  <BoardView tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
+                </div>
               </div>
               <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
                 <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} canEdit={isAdmin} projectModules={activeProject?.modules ?? []} />

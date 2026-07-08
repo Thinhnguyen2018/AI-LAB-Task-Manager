@@ -156,17 +156,22 @@ def health():
 
 @app.get("/kb/pdf-proxy")
 async def pdf_proxy(url: str):
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import Response
     import httpx
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-        r = await client.get(url)
-        if r.status_code != 200:
-            raise HTTPException(status_code=502, detail="Failed to fetch PDF")
-    return StreamingResponse(
-        iter([r.content]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": "inline"},
-    )
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
+            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        return Response(
+            content=r.content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "inline",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Proxy error: {str(e)}")
 
 # ── Auth endpoints ──
 

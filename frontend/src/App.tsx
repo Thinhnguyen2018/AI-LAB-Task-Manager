@@ -611,7 +611,7 @@ export default function App() {
                           onClick={() => setBoardMenuId(boardMenuId === b.id ? null : b.id)}
                           style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 15, padding: '0 4px', lineHeight: 1, opacity: boardMenuId === b.id ? 1 : 0.4 }}
                           title="Board options"
-                        >···</button>
+                        >⋮</button>
                       )}
                       {isAdmin && boardMenuId === b.id && (
                         <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1px solid #dfe1e6', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 140, padding: '4px 0' }}>

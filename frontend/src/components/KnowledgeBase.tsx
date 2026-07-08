@@ -264,6 +264,21 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
   const isMd = selected?.file_type === 'md'
   const isHtml = selected?.file_type === 'html'
 
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isPdf || !selected?.file_url) { setPdfBlobUrl(null); return }
+    let objectUrl: string
+    setPdfLoading(true)
+    fetch(selected.file_url)
+      .then(r => r.blob())
+      .then(blob => { objectUrl = URL.createObjectURL(blob); setPdfBlobUrl(objectUrl) })
+      .catch(() => setPdfBlobUrl(null))
+      .finally(() => setPdfLoading(false))
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [selected?.id, isPdf, selected?.file_url])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
@@ -404,12 +419,20 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
 
             {/* Content */}
             <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
-              {isPdf && selected.file_url ? (
-                <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(selected.file_url)}&embedded=true`}
-                  style={{ width: '100%', height: '100%', border: 'none' }}
-                  title={selected.title}
-                />
+              {isPdf ? (
+                pdfLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b778c', fontSize: 14 }}>
+                    Loading PDF...
+                  </div>
+                ) : pdfBlobUrl ? (
+                  <iframe src={pdfBlobUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={selected.title} />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b778c', fontSize: 14, gap: 12 }}>
+                    <div style={{ fontSize: 32 }}>📄</div>
+                    <div>Cannot preview this PDF</div>
+                    {selected.file_url && <a href={selected.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0052cc', fontSize: 13 }}>Open in new tab</a>}
+                  </div>
+                )
               ) : isHtml && selected.content ? (
                 <iframe
                   srcDoc={selected.content}

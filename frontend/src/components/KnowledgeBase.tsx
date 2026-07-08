@@ -461,14 +461,14 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
 
   if (openCollection) {
     return (
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <CollectionDetail collection={openCollection} onBack={() => setOpenCollection(null)} />
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
+    <div style={{ height: '100%', overflowY: 'auto' }}>
       <CollectionList projectId={activeProjectId} onOpen={setOpenCollection} />
     </div>
   )

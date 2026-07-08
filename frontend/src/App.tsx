@@ -491,7 +491,7 @@ export default function App() {
         )}
 
         {/* Content */}
-        <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <main style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           {loading && tab !== 'meeting-notes' && <p style={{ color: '#6b7280', textAlign: 'center', padding: 24 }}>Loading...</p>}
           {error && <p style={{ color: '#dc2626', textAlign: 'center', padding: 24 }}>{error}</p>}
           {!loading && !error && (
@@ -518,7 +518,7 @@ export default function App() {
                 </div>
               )}
               {tab === 'knowledge-base' && (
-                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ height: 'calc(100vh - 88px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <KnowledgeBase activeProjectId={activeProjectId} />
                 </div>
               )}

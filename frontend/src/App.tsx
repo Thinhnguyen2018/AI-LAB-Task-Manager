@@ -94,6 +94,7 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<number | null>(null)
   const [editingBoardId, setEditingBoardId] = useState<number | null>(null)
   const [editingBoardName, setEditingBoardName] = useState('')
+  const [boardMenuId, setBoardMenuId] = useState<number | null>(null)
   const [boardModal, setBoardModal] = useState<{ mode: 'create' | 'rename' | 'delete'; board?: Board } | null>(null)
   const [boardModalName, setBoardModalName] = useState('')
 
@@ -593,7 +594,8 @@ export default function App() {
                 {/* Board switcher */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 24px 0', borderBottom: '1px solid #dfe1e6', background: '#fff', flexShrink: 0 }}>
                   {boards.map(b => (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                    <div key={b.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                      onMouseLeave={() => setBoardMenuId(null)}>
                       <button
                         onClick={() => setActiveBoardId(b.id)}
                         style={{
@@ -604,19 +606,28 @@ export default function App() {
                           cursor: 'pointer', whiteSpace: 'nowrap',
                         }}
                       >{b.name}</button>
-                      {isAdmin && activeBoardId === b.id && (
+                      {isAdmin && (
                         <button
-                          onClick={() => { setBoardModalName(b.name); setBoardModal({ mode: 'rename', board: b }) }}
-                          style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
-                          title="Rename board"
-                        >✏️</button>
+                          onClick={() => setBoardMenuId(boardMenuId === b.id ? null : b.id)}
+                          style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 15, padding: '0 4px', lineHeight: 1, opacity: boardMenuId === b.id ? 1 : 0.4 }}
+                          title="Board options"
+                        >···</button>
                       )}
-                      {isAdmin && boards.length > 1 && (
-                        <button
-                          onClick={() => setBoardModal({ mode: 'delete', board: b })}
-                          style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 12, padding: '0 2px', lineHeight: 1 }}
-                          title="Delete board"
-                        >×</button>
+                      {isAdmin && boardMenuId === b.id && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1px solid #dfe1e6', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 140, padding: '4px 0' }}>
+                          <button onClick={() => { setBoardModalName(b.name); setBoardModal({ mode: 'rename', board: b }); setBoardMenuId(null) }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#172b4d', background: 'none', border: 'none', cursor: 'pointer' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                          >✏️ Đổi tên</button>
+                          {boards.length > 1 && (
+                            <button onClick={() => { setBoardModal({ mode: 'delete', board: b }); setBoardMenuId(null) }}
+                              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#de350b', background: 'none', border: 'none', cursor: 'pointer' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#ffebe6')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            >🗑 Xóa board</button>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}

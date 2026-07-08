@@ -269,16 +269,20 @@ def delete_note(note_id: str, db: Session = Depends(get_db)):
 
 @app.get("/kb-collections", response_model=List[schemas.KbCollectionOut])
 def get_collections(project_id: int = None, db: Session = Depends(get_db)):
+    from datetime import datetime as dt
     q = db.query(models.KbCollection)
     if project_id is not None:
         q = q.filter(models.KbCollection.project_id == project_id)
     collections = q.order_by(models.KbCollection.created_at.desc()).all()
+    now = dt.utcnow()
     result = []
     for col in collections:
         count = db.query(models.KbDoc).filter(models.KbDoc.collection_id == col.id).count()
         out = schemas.KbCollectionOut(
             id=col.id, name=col.name, description=col.description,
-            project_id=col.project_id, created_at=col.created_at, updated_at=col.updated_at,
+            project_id=col.project_id,
+            created_at=col.created_at or now,
+            updated_at=col.updated_at or now,
             file_count=count,
         )
         result.append(out)
@@ -286,14 +290,20 @@ def get_collections(project_id: int = None, db: Session = Depends(get_db)):
 
 @app.post("/kb-collections", response_model=schemas.KbCollectionOut)
 def create_collection(body: schemas.KbCollectionCreate, db: Session = Depends(get_db)):
+    from datetime import datetime as dt
     col_id = f"kb-{int(time.time() * 1000)}"
+    now = dt.utcnow()
     col = models.KbCollection(id=col_id, name=body.name, description=body.description, project_id=body.project_id)
     db.add(col)
     db.commit()
     db.refresh(col)
-    return schemas.KbCollectionOut(id=col.id, name=col.name, description=col.description,
-                                   project_id=col.project_id, created_at=col.created_at,
-                                   updated_at=col.updated_at, file_count=0)
+    return schemas.KbCollectionOut(
+        id=col.id, name=col.name, description=col.description,
+        project_id=col.project_id,
+        created_at=col.created_at or now,
+        updated_at=col.updated_at or now,
+        file_count=0,
+    )
 
 @app.patch("/kb-collections/{col_id}", response_model=schemas.KbCollectionOut)
 def update_collection(col_id: str, body: schemas.KbCollectionUpdate, db: Session = Depends(get_db)):

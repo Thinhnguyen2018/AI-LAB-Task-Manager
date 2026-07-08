@@ -55,6 +55,8 @@ function CollectionList({ projectId, onOpen }: { projectId: number; onOpen: (c: 
       const col = await createKbCollection({ name: newName.trim(), description: newDesc.trim() || undefined, project_id: projectId })
       setCollections(prev => [col, ...prev])
       setCreating(false); setNewName(''); setNewDesc('')
+    } catch (e: any) {
+      alert(`Lỗi tạo Knowledge Base: ${e.message}`)
     } finally { setSaving(false) }
   }
 

@@ -275,10 +275,12 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
 
   const pdfFile = isPdf && selected?.content
     ? (() => {
-        const bin = atob(selected.content)
-        const arr = new Uint8Array(bin.length)
-        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
-        return { data: arr }
+        try {
+          const bin = atob(selected.content)
+          const arr = new Uint8Array(bin.length)
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+          return { data: arr }
+        } catch { return null }
       })()
     : null
 

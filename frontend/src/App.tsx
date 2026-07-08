@@ -567,6 +567,55 @@ export default function App() {
             {isAdmin && <span style={{ marginLeft: 8, fontSize: 11, background: '#e9f2ff', color: '#0052cc', borderRadius: 3, padding: '2px 7px', fontWeight: 600 }}>Admin</span>}
           </div>
 
+        {/* Board switcher — visible for all task tabs */}
+        {boards.length > 0 && ['board', 'roadmap', 'milestones', 'dashboard'].includes(tab) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 24px', borderBottom: '1px solid #dfe1e6', background: '#fff', flexShrink: 0 }}>
+            {boards.map(b => (
+              <div key={b.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                onMouseLeave={() => setBoardMenuId(null)}>
+                <button
+                  onClick={() => setActiveBoardId(b.id)}
+                  style={{
+                    padding: '8px 14px', fontSize: 13, fontWeight: activeBoardId === b.id ? 600 : 400,
+                    color: activeBoardId === b.id ? '#0052cc' : '#42526e',
+                    background: 'none', border: 'none',
+                    borderBottom: activeBoardId === b.id ? '2px solid #0052cc' : '2px solid transparent',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >{b.name}</button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setBoardMenuId(boardMenuId === b.id ? null : b.id)}
+                    style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', padding: '0 4px', lineHeight: 1, opacity: boardMenuId === b.id ? 1 : 0.4 }}
+                  ><svg width="14" height="14" viewBox="0 0 4 16" fill="currentColor"><circle cx="2" cy="2" r="1.5"/><circle cx="2" cy="8" r="1.5"/><circle cx="2" cy="14" r="1.5"/></svg></button>
+                )}
+                {isAdmin && boardMenuId === b.id && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1px solid #dfe1e6', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 140, padding: '4px 0' }}>
+                    <button onClick={() => { setBoardModalName(b.name); setBoardModal({ mode: 'rename', board: b }); setBoardMenuId(null) }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#172b4d', background: 'none', border: 'none', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >✏️ Đổi tên</button>
+                    {boards.length > 1 && (
+                      <button onClick={() => { setBoardModal({ mode: 'delete', board: b }); setBoardMenuId(null) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#de350b', background: 'none', border: 'none', cursor: 'pointer' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#ffebe6')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >🗑 Xóa board</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {isAdmin && (
+              <button
+                onClick={() => { setBoardModalName(''); setBoardModal({ mode: 'create' }) }}
+                style={{ padding: '8px 10px', fontSize: 13, color: '#6b778c', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '2px solid transparent' }}
+              >+ Add board</button>
+            )}
+          </div>
+        )}
+
         {/* Filter bar — only for task tabs */}
         {(tab === 'board' || tab === 'roadmap') && (
           <FilterBar
@@ -590,57 +639,8 @@ export default function App() {
           {error && <p style={{ color: '#dc2626', textAlign: 'center', padding: 24 }}>{error}</p>}
           {!loading && !error && (
             <>
-              <div style={{ display: tab === 'board' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
-                {/* Board switcher */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 24px 0', borderBottom: '1px solid #dfe1e6', background: '#fff', flexShrink: 0 }}>
-                  {boards.map(b => (
-                    <div key={b.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
-                      onMouseLeave={() => setBoardMenuId(null)}>
-                      <button
-                        onClick={() => setActiveBoardId(b.id)}
-                        style={{
-                          padding: '7px 14px', fontSize: 13, fontWeight: activeBoardId === b.id ? 600 : 400,
-                          color: activeBoardId === b.id ? '#0052cc' : '#42526e',
-                          background: 'none', border: 'none',
-                          borderBottom: activeBoardId === b.id ? '2px solid #0052cc' : '2px solid transparent',
-                          cursor: 'pointer', whiteSpace: 'nowrap',
-                        }}
-                      >{b.name}</button>
-                      {isAdmin && (
-                        <button
-                          onClick={() => setBoardMenuId(boardMenuId === b.id ? null : b.id)}
-                          style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 15, padding: '0 4px', lineHeight: 1, opacity: boardMenuId === b.id ? 1 : 0.4 }}
-                          title="Board options"
-                        ><svg width="14" height="14" viewBox="0 0 4 16" fill="currentColor"><circle cx="2" cy="2" r="1.5"/><circle cx="2" cy="8" r="1.5"/><circle cx="2" cy="14" r="1.5"/></svg></button>
-                      )}
-                      {isAdmin && boardMenuId === b.id && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, background: '#fff', border: '1px solid #dfe1e6', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 140, padding: '4px 0' }}>
-                          <button onClick={() => { setBoardModalName(b.name); setBoardModal({ mode: 'rename', board: b }); setBoardMenuId(null) }}
-                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#172b4d', background: 'none', border: 'none', cursor: 'pointer' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                          >✏️ Đổi tên</button>
-                          {boards.length > 1 && (
-                            <button onClick={() => { setBoardModal({ mode: 'delete', board: b }); setBoardMenuId(null) }}
-                              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#de350b', background: 'none', border: 'none', cursor: 'pointer' }}
-                              onMouseEnter={e => (e.currentTarget.style.background = '#ffebe6')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                            >🗑 Xóa board</button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {isAdmin && (
-                    <button
-                      onClick={() => { setBoardModalName(''); setBoardModal({ mode: 'create' }) }}
-                      style={{ padding: '7px 10px', fontSize: 13, color: '#6b778c', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '2px solid transparent' }}
-                    >+ Add board</button>
-                  )}
-                </div>
-                <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-                  <BoardView tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
-                </div>
+              <div style={{ display: tab === 'board' ? 'block' : 'none', padding: 24 }}>
+                <BoardView tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
               </div>
               <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
                 <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} canEdit={isAdmin} projectModules={activeProject?.modules ?? []} />

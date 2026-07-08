@@ -407,7 +407,7 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
             <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
               {isPdf && selected.file_url ? (
                 <iframe
-                  src={`${BASE}/kb/pdf-proxy?url=${encodeURIComponent(selected.file_url)}`}
+                  src={selected.file_url.replace('/upload/', '/upload/fl_attachment:false/')}
                   style={{ width: '100%', height: '100%', border: 'none' }}
                   title={selected.title}
                 />

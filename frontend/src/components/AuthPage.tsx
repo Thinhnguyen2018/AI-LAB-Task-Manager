@@ -25,7 +25,7 @@ export default function AuthPage({ onAuth }: Props) {
       const msg = err.message ?? ''
       if (msg.includes('401') || msg.includes('Invalid')) setError('Email hoặc mật khẩu không đúng')
       else if (msg.includes('400') || msg.includes('already')) setError('Email đã được đăng ký')
-      else setError('Có lỗi xảy ra, thử lại nhé')
+      else setError(msg || 'Có lỗi xảy ra, thử lại nhé')
     } finally {
       setLoading(false)
     }

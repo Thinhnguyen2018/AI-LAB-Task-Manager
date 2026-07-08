@@ -94,6 +94,8 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<number | null>(null)
   const [editingBoardId, setEditingBoardId] = useState<number | null>(null)
   const [editingBoardName, setEditingBoardName] = useState('')
+  const [boardModal, setBoardModal] = useState<{ mode: 'create' | 'rename' | 'delete'; board?: Board } | null>(null)
+  const [boardModalName, setBoardModalName] = useState('')
 
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [showProjectDropdown, setShowProjectDropdown] = useState(false)
@@ -592,43 +594,26 @@ export default function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 24px 0', borderBottom: '1px solid #dfe1e6', background: '#fff', flexShrink: 0 }}>
                   {boards.map(b => (
                     <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                      {editingBoardId === b.id ? (
-                        <input
-                          autoFocus
-                          value={editingBoardName}
-                          onChange={e => setEditingBoardName(e.target.value)}
-                          onBlur={async () => {
-                            if (editingBoardName.trim() && editingBoardName !== b.name) {
-                              const updated = await updateBoard(b.id, editingBoardName.trim())
-                              setBoards(prev => prev.map(x => x.id === b.id ? updated : x))
-                            }
-                            setEditingBoardId(null)
-                          }}
-                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingBoardId(null) }}
-                          style={{ fontSize: 13, fontWeight: 600, border: 'none', borderBottom: '2px solid #0052cc', outline: 'none', padding: '4px 6px', background: 'none', width: 120 }}
-                        />
-                      ) : (
+                      <button
+                        onClick={() => setActiveBoardId(b.id)}
+                        style={{
+                          padding: '7px 14px', fontSize: 13, fontWeight: activeBoardId === b.id ? 600 : 400,
+                          color: activeBoardId === b.id ? '#0052cc' : '#42526e',
+                          background: 'none', border: 'none',
+                          borderBottom: activeBoardId === b.id ? '2px solid #0052cc' : '2px solid transparent',
+                          cursor: 'pointer', whiteSpace: 'nowrap',
+                        }}
+                      >{b.name}</button>
+                      {isAdmin && activeBoardId === b.id && (
                         <button
-                          onClick={() => setActiveBoardId(b.id)}
-                          onDoubleClick={() => { setEditingBoardId(b.id); setEditingBoardName(b.name) }}
-                          style={{
-                            padding: '7px 14px', fontSize: 13, fontWeight: activeBoardId === b.id ? 600 : 400,
-                            color: activeBoardId === b.id ? '#0052cc' : '#42526e',
-                            background: 'none', border: 'none',
-                            borderBottom: activeBoardId === b.id ? '2px solid #0052cc' : '2px solid transparent',
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                          }}
-                        >{b.name}</button>
+                          onClick={() => { setBoardModalName(b.name); setBoardModal({ mode: 'rename', board: b }) }}
+                          style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
+                          title="Rename board"
+                        >✏️</button>
                       )}
                       {isAdmin && boards.length > 1 && (
                         <button
-                          onClick={async () => {
-                            if (!confirm(`Delete board "${b.name}"?`)) return
-                            await deleteBoard(b.id)
-                            const remaining = boards.filter(x => x.id !== b.id)
-                            setBoards(remaining)
-                            if (activeBoardId === b.id) setActiveBoardId(remaining[0]?.id ?? null)
-                          }}
+                          onClick={() => setBoardModal({ mode: 'delete', board: b })}
                           style={{ background: 'none', border: 'none', color: '#97a0af', cursor: 'pointer', fontSize: 12, padding: '0 2px', lineHeight: 1 }}
                           title="Delete board"
                         >×</button>
@@ -637,16 +622,8 @@ export default function App() {
                   ))}
                   {isAdmin && (
                     <button
-                      onClick={async () => {
-                        if (!activeProjectId) return
-                        const name = prompt('Board name:')
-                        if (!name?.trim()) return
-                        const b = await createBoard(name.trim(), activeProjectId)
-                        setBoards(prev => [...prev, b])
-                        setActiveBoardId(b.id)
-                      }}
+                      onClick={() => { setBoardModalName(''); setBoardModal({ mode: 'create' }) }}
                       style={{ padding: '7px 10px', fontSize: 13, color: '#6b778c', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '2px solid transparent' }}
-                      title="Add board"
                     >+ Add board</button>
                   )}
                 </div>
@@ -710,6 +687,88 @@ export default function App() {
           onConfirm={handleCreateProject}
           onClose={() => setShowNewProjectModal(false)}
         />
+      )}
+
+      {/* Board modal — create / rename / delete */}
+      {boardModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(9,30,66,0.54)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setBoardModal(null)}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: '28px 28px 24px', width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            {boardModal.mode === 'delete' ? (
+              <>
+                <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#172b4d' }}>Xóa board</h2>
+                <p style={{ margin: '0 0 24px', fontSize: 14, color: '#42526e' }}>
+                  Xóa board <strong>"{boardModal.board?.name}"</strong>? Các task trong board này sẽ không bị xóa.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setBoardModal(null)}
+                    style={{ padding: '8px 16px', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: '#42526e' }}>
+                    Hủy
+                  </button>
+                  <button onClick={async () => {
+                    const b = boardModal.board!
+                    await deleteBoard(b.id)
+                    const remaining = boards.filter(x => x.id !== b.id)
+                    setBoards(remaining)
+                    if (activeBoardId === b.id) setActiveBoardId(remaining[0]?.id ?? null)
+                    setBoardModal(null)
+                  }}
+                    style={{ padding: '8px 16px', background: '#de350b', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+                    Xóa board
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: '#172b4d' }}>
+                  {boardModal.mode === 'create' ? 'Tạo board mới' : 'Đổi tên board'}
+                </h2>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b778c', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tên board</label>
+                <input
+                  autoFocus
+                  value={boardModalName}
+                  onChange={e => setBoardModalName(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key !== 'Enter' || !boardModalName.trim()) return
+                    if (boardModal.mode === 'create' && activeProjectId) {
+                      const b = await createBoard(boardModalName.trim(), activeProjectId)
+                      setBoards(prev => [...prev, b]); setActiveBoardId(b.id)
+                    } else if (boardModal.mode === 'rename' && boardModal.board) {
+                      const updated = await updateBoard(boardModal.board.id, boardModalName.trim())
+                      setBoards(prev => prev.map(x => x.id === boardModal.board!.id ? updated : x))
+                    }
+                    setBoardModal(null)
+                  }}
+                  placeholder="e.g. Sprint 1"
+                  style={{ width: '100%', padding: '9px 12px', border: '2px solid #0052cc', borderRadius: 4, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 20 }}
+                />
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setBoardModal(null)}
+                    style={{ padding: '8px 16px', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: '#42526e' }}>
+                    Hủy
+                  </button>
+                  <button
+                    disabled={!boardModalName.trim()}
+                    onClick={async () => {
+                      if (!boardModalName.trim()) return
+                      if (boardModal.mode === 'create' && activeProjectId) {
+                        const b = await createBoard(boardModalName.trim(), activeProjectId)
+                        setBoards(prev => [...prev, b]); setActiveBoardId(b.id)
+                      } else if (boardModal.mode === 'rename' && boardModal.board) {
+                        const updated = await updateBoard(boardModal.board.id, boardModalName.trim())
+                        setBoards(prev => prev.map(x => x.id === boardModal.board!.id ? updated : x))
+                      }
+                      setBoardModal(null)
+                    }}
+                    style={{ padding: '8px 20px', background: '#0052cc', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', opacity: boardModalName.trim() ? 1 : 0.5 }}>
+                    {boardModal.mode === 'create' ? 'Tạo board' : 'Lưu'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

@@ -518,7 +518,9 @@ export default function App() {
                 </div>
               )}
               {tab === 'knowledge-base' && (
-                <KnowledgeBase activeProjectId={activeProjectId} />
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                  <KnowledgeBase activeProjectId={activeProjectId} />
+                </div>
               )}
               {tab === 'settings' && (
                 <div style={{ padding: 24, overflowY: 'auto', height: '100%' }}>

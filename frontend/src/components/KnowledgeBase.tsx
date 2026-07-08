@@ -12,6 +12,7 @@ const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const FILE_ICONS: Record<string, string> = {
   pdf: '📄', docx: '📝', doc: '📝', txt: '📃', md: '📃',
+  html: '🌐',
   png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️',
   xlsx: '📊', xls: '📊', pptx: '📊', ppt: '📊',
 }
@@ -19,7 +20,7 @@ const getFileIcon = (type?: string) => FILE_ICONS[type ?? ''] ?? '📁'
 
 const TYPE_COLORS: Record<string, string> = {
   pdf: '#de350b', docx: '#0052cc', doc: '#0052cc', md: '#6554c0',
-  txt: '#6b778c', png: '#00875a', jpg: '#00875a', xlsx: '#36b37e',
+  html: '#0065ff', txt: '#6b778c', png: '#00875a', jpg: '#00875a', xlsx: '#36b37e',
 }
 const getTypeColor = (type?: string) => TYPE_COLORS[type ?? ''] ?? '#6b778c'
 
@@ -246,6 +247,7 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
   const isPdf = selected?.file_type === 'pdf'
   const isImage = selected?.file_type && ['png', 'jpg', 'jpeg', 'gif'].includes(selected.file_type)
   const isMd = selected?.file_type === 'md'
+  const isHtml = selected?.file_type === 'html'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -284,7 +286,7 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
           >
             {uploading ? '⏳ Uploading...' : '↑ Upload'}
           </button>
-          <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.xlsx,.pptx" style={{ display: 'none' }} onChange={handleFiles} />
+          <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.html,.png,.jpg,.jpeg,.gif,.xlsx,.pptx" style={{ display: 'none' }} onChange={handleFiles} />
         </div>
 
         {/* Meta */}
@@ -323,28 +325,35 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
                     onMouseEnter={e => { if (selected?.id !== doc.id) e.currentTarget.style.background = '#f4f5f7' }}
                     onMouseLeave={e => { if (selected?.id !== doc.id) e.currentTarget.style.background = '#fff' }}
                   >
-                    <td style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 18, flexShrink: 0 }}>{getFileIcon(doc.file_type)}</span>
-                      <span style={{ flex: 1, color: '#172b4d', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {doc.title}
-                      </span>
-                      <span style={{ fontSize: 11, color: '#36b37e', fontWeight: 700, flexShrink: 0 }}>Completed</span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, flexShrink: 0,
-                        color: getTypeColor(doc.file_type),
-                        background: `${getTypeColor(doc.file_type)}18`,
-                        padding: '2px 7px', borderRadius: 3,
-                      }}>
-                        {doc.file_type?.toUpperCase() ?? 'FILE'}
-                      </span>
+                    <td style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{getFileIcon(doc.file_type)}</span>
+                      {/* Name + badges block */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: '#172b4d', fontWeight: 500, fontSize: 13, lineHeight: 1.4, wordBreak: 'break-all' }}>
+                          {doc.title}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ fontSize: 11, color: '#36b37e', fontWeight: 700 }}>Completed</span>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700,
+                            color: getTypeColor(doc.file_type),
+                            background: `${getTypeColor(doc.file_type)}18`,
+                            padding: '1px 6px', borderRadius: 3,
+                          }}>
+                            {doc.file_type?.toUpperCase() ?? 'FILE'}
+                          </span>
+                          {doc.file_size ? <span style={{ fontSize: 11, color: '#97a0af' }}>{formatSize(doc.file_size)}</span> : null}
+                        </div>
+                      </div>
+                      {/* Actions */}
                       {doc.file_url && (
                         <a href={doc.file_url} target="_blank" rel="noopener noreferrer" download
                           onClick={e => e.stopPropagation()}
-                          style={{ color: '#6b778c', fontSize: 15, flexShrink: 0, textDecoration: 'none' }}
+                          style={{ color: '#6b778c', fontSize: 15, flexShrink: 0, textDecoration: 'none', padding: '2px 4px' }}
                           title="Download">↓</a>
                       )}
                       <button onClick={e => handleDelete(doc.id, e)}
-                        style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}
+                        style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 13, padding: '2px 4px', flexShrink: 0 }}
                         title="Delete">🗑</button>
                     </td>
                   </tr>
@@ -376,6 +385,13 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
             <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
               {isPdf && selected.file_url ? (
                 <iframe src={selected.file_url} style={{ width: '100%', height: '100%', border: 'none' }} title={selected.title} />
+              ) : isHtml && selected.content ? (
+                <iframe
+                  srcDoc={selected.content}
+                  style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                  title={selected.title}
+                  sandbox="allow-scripts allow-same-origin"
+                />
               ) : isImage && selected.file_url ? (
                 <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: 24 }}>
                   <img src={selected.file_url} alt={selected.title} style={{ maxWidth: '100%', borderRadius: 6, boxShadow: '0 2px 16px rgba(0,0,0,0.12)' }} />
@@ -445,14 +461,14 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
 
   if (openCollection) {
     return (
-      <div style={{ height: 'calc(100vh - 88px)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <CollectionDetail collection={openCollection} onBack={() => setOpenCollection(null)} />
       </div>
     )
   }
 
   return (
-    <div style={{ height: 'calc(100vh - 88px)', overflowY: 'auto' }}>
+    <div style={{ flex: 1, overflowY: 'auto' }}>
       <CollectionList projectId={activeProjectId} onOpen={setOpenCollection} />
     </div>
   )

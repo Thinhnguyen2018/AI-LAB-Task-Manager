@@ -373,7 +373,7 @@ async def upload_kb_doc(
     title = filename.rsplit(".", 1)[0] if "." in filename else filename
     file_size = len(raw)
 
-    ALLOWED = {"txt", "md", "pdf", "docx", "png", "jpg", "jpeg", "gif", "xlsx", "pptx"}
+    ALLOWED = {"txt", "md", "html", "pdf", "docx", "png", "jpg", "jpeg", "gif", "xlsx", "pptx"}
     if ext not in ALLOWED:
         raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}")
 
@@ -395,7 +395,7 @@ async def upload_kb_doc(
 
     # ── Extract text for search/preview ──
     content = ""
-    if ext in ("txt", "md"):
+    if ext in ("txt", "md", "html"):
         content = raw.decode("utf-8", errors="replace")
     elif ext == "pdf":
         try:

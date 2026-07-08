@@ -10,6 +10,16 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import os, httpx, time
+import cloudinary
+import cloudinary.uploader
+
+# ── Cloudinary config ──
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", "pwulrfvc"),
+    api_key=os.getenv("CLOUDINARY_API_KEY", "189474275442255"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET", "te5CNOWj2OiUbLnlLUv-_qC7zNk"),
+    secure=True,
+)
 import models, schemas
 from database import engine, get_db, Base
 
@@ -107,6 +117,17 @@ with engine.connect() as conn:
             UNIQUE(project_id, user_id)
         )
     """))
+    # Migrations for kb_docs Cloudinary columns
+    for col, typ in [
+        ("file_url", "VARCHAR(500)"),
+        ("file_public_id", "VARCHAR(200)"),
+        ("file_type", "VARCHAR(20)"),
+        ("file_size", "INTEGER"),
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE kb_docs ADD COLUMN IF NOT EXISTS {col} {typ}"))
+        except Exception:
+            pass
     conn.commit()
 
 app = FastAPI()
@@ -275,34 +296,58 @@ async def upload_kb_doc(
     category: str = Form("General"),
     db: Session = Depends(get_db)
 ):
+    import io
     raw = await file.read()
     filename = file.filename or "document"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    title = filename.rsplit(".", 1)[0] if "." in filename else filename
+    file_size = len(raw)
 
+    ALLOWED = {"txt", "md", "pdf", "docx", "png", "jpg", "jpeg", "gif", "xlsx", "pptx"}
+    if ext not in ALLOWED:
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}")
+
+    # ── Upload to Cloudinary ──
+    resource_type = "image" if ext in ("png", "jpg", "jpeg", "gif") else "raw"
+    try:
+        upload_result = cloudinary.uploader.upload(
+            raw,
+            public_id=f"taskflow/kb/{int(time.time() * 1000)}_{title[:40]}",
+            resource_type=resource_type,
+            use_filename=True,
+            unique_filename=True,
+            overwrite=False,
+        )
+        file_url = upload_result.get("secure_url", "")
+        file_public_id = upload_result.get("public_id", "")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cloudinary upload failed: {e}")
+
+    # ── Extract text for search/preview ──
+    content = ""
     if ext in ("txt", "md"):
         content = raw.decode("utf-8", errors="replace")
     elif ext == "pdf":
         try:
-            import io
             from PyPDF2 import PdfReader
             reader = PdfReader(io.BytesIO(raw))
             content = "\n\n".join(p.extract_text() or "" for p in reader.pages).strip()
-        except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Could not parse PDF: {e}")
-    elif ext in ("docx",):
+        except Exception:
+            content = ""
+    elif ext == "docx":
         try:
-            import io
-            from docx import Document
-            doc = Document(io.BytesIO(raw))
+            from docx import Document as DocxDocument
+            doc = DocxDocument(io.BytesIO(raw))
             content = "\n".join(p.text for p in doc.paragraphs)
-        except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Could not parse DOCX: {e}")
-    else:
-        raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}. Supported: .txt, .md, .pdf, .docx")
+        except Exception:
+            content = ""
 
-    title = filename.rsplit(".", 1)[0] if "." in filename else filename
     doc_id = f"doc-{int(time.time() * 1000)}"
-    db_doc = models.KbDoc(id=doc_id, title=title, content=content, category=category, project_id=project_id)
+    db_doc = models.KbDoc(
+        id=doc_id, title=title, content=content, category=category,
+        project_id=project_id, file_url=file_url, file_public_id=file_public_id,
+        file_type=ext, file_size=file_size,
+    )
     db.add(db_doc)
     db.commit()
     db.refresh(db_doc)

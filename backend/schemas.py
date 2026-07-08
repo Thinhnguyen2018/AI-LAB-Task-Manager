@@ -93,6 +93,10 @@ class KbDocOut(BaseModel):
     content: str
     category: str
     project_id: Optional[int] = None
+    file_url: Optional[str] = None
+    file_public_id: Optional[str] = None
+    file_type: Optional[str] = None
+    file_size: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

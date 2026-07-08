@@ -45,6 +45,10 @@ export interface KbDoc {
   content: string
   category: string
   project_id?: number
+  file_url?: string
+  file_public_id?: string
+  file_type?: string
+  file_size?: number
   created_at: string
   updated_at: string
 }

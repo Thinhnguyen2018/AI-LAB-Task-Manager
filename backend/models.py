@@ -42,6 +42,10 @@ class KbDoc(Base):
     content = Column(Text, nullable=False, default="")
     category = Column(String(100), nullable=False, default="General")
     project_id = Column(Integer, nullable=True)
+    file_url = Column(String(500), nullable=True)
+    file_public_id = Column(String(200), nullable=True)
+    file_type = Column(String(20), nullable=True)
+    file_size = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

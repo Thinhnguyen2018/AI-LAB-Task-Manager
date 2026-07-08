@@ -271,7 +271,8 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
 
   const [numPages, setNumPages] = useState<number>(0)
   const [pdfError, setPdfError] = useState(false)
-  useEffect(() => { setNumPages(0); setPdfError(false) }, [selected?.id])
+  const [pdfScale, setPdfScale] = useState(1.0)
+  useEffect(() => { setNumPages(0); setPdfError(false); setPdfScale(1.0) }, [selected?.id])
 
   const pdfFile = isPdf && selected?.content
     ? (() => {
@@ -426,7 +427,18 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
             {/* Content */}
             <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
               {isPdf && selected.file_url ? (
-                <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: 8, background: '#525659' }}>
+                <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  {/* Zoom toolbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '6px 12px', background: '#38383a', flexShrink: 0 }}>
+                    <button onClick={() => setPdfScale(s => Math.max(0.5, +(s - 0.25).toFixed(2)))}
+                      style={{ width: 28, height: 28, borderRadius: 4, border: 'none', background: '#525659', color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ color: '#fff', fontSize: 13, minWidth: 44, textAlign: 'center' }}>{Math.round(pdfScale * 100)}%</span>
+                    <button onClick={() => setPdfScale(s => Math.min(3, +(s + 0.25).toFixed(2)))}
+                      style={{ width: 28, height: 28, borderRadius: 4, border: 'none', background: '#525659', color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    <button onClick={() => setPdfScale(1.0)}
+                      style={{ marginLeft: 4, padding: '3px 10px', borderRadius: 4, border: 'none', background: '#525659', color: '#bbb', fontSize: 11, cursor: 'pointer' }}>Reset</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: 8, background: '#525659' }}>
                   {pdfError ? (
                     <div style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginTop: 60 }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
@@ -445,13 +457,14 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
                         <Page
                           key={i + 1}
                           pageNumber={i + 1}
-                          width={600}
+                          scale={pdfScale}
                           renderTextLayer={true}
                           renderAnnotationLayer={true}
                         />
                       ))}
                     </Document>
                   )}
+                  </div>
                 </div>
               ) : isHtml && selected.content ? (
                 <iframe

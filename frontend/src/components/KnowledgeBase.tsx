@@ -426,7 +426,7 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
                     <Document
                       file={`${BASE}/kb/pdf-proxy?url=${encodeURIComponent(selected.file_url)}`}
                       onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                      onLoadError={() => setPdfError(true)}
+                      onLoadError={(err) => { console.error('[PDF]', err); setPdfError(true) }}
                       loading={<div style={{ color: '#fff', marginTop: 40 }}>Đang tải PDF...</div>}
                     >
                       {Array.from({ length: numPages }, (_, i) => (

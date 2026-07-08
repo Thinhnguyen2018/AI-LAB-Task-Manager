@@ -89,6 +89,7 @@ export default function App() {
     setTab('board')
   }
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false)
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null)
   const [editingProjectName, setEditingProjectName] = useState('')
 
@@ -110,6 +111,17 @@ export default function App() {
   }, [])
 
   useEffect(() => { if (currentUser) load() }, [load, currentUser])
+
+  // Close project dropdown on outside click
+  useEffect(() => {
+    if (!showProjectDropdown) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-project-switcher]')) setShowProjectDropdown(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showProjectDropdown])
 
   // Fetch role for current project
   useEffect(() => {
@@ -281,10 +293,23 @@ export default function App() {
           transition: 'width 0.2s', overflow: 'hidden',
           height: 'calc(100vh - 48px)', position: 'sticky', top: 48,
         }}>
-          {/* Active project header */}
-          {activeProject && !collapsed && (
-            <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #dfe1e6', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Active project header — click to switch */}
+          <div data-project-switcher style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => setShowProjectDropdown(v => !v)}
+              title={collapsed ? (activeProject?.name ?? 'Switch project') : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: collapsed ? '12px 0' : '12px 16px',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                background: showProjectDropdown ? '#f4f5f7' : 'none',
+                border: 'none', borderBottom: '1px solid #dfe1e6',
+                cursor: 'pointer', boxSizing: 'border-box',
+              }}
+              onMouseEnter={e => { if (!showProjectDropdown) (e.currentTarget as HTMLButtonElement).style.background = '#f4f5f7' }}
+              onMouseLeave={e => { if (!showProjectDropdown) (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+            >
+              {activeProject ? (
                 <div style={{
                   width: 30, height: 30, borderRadius: 6, background: activeProject.color,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -292,22 +317,79 @@ export default function App() {
                 }}>
                   {activeProject.name.charAt(0).toUpperCase()}
                 </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeProject.name}</div>
-                  <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1 }}>Software project</div>
-                </div>
-              </div>
-            </div>
-          )}
-          {collapsed && (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0', borderBottom: '1px solid #dfe1e6', flexShrink: 0 }}>
-              {activeProject && (
-                <div style={{ width: 30, height: 30, borderRadius: 6, background: activeProject.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}>
-                  {activeProject.name.charAt(0).toUpperCase()}
-                </div>
+              ) : (
+                <div style={{ width: 30, height: 30, borderRadius: 6, background: '#dfe1e6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>📋</div>
               )}
-            </div>
-          )}
+              {!collapsed && (
+                <>
+                  <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {activeProject?.name ?? 'Select project'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1 }}>Software project</div>
+                  </div>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#6b778c" strokeWidth="1.8"
+                    style={{ flexShrink: 0, transform: showProjectDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                    <path d="M2 4l4 4 4-4"/>
+                  </svg>
+                </>
+              )}
+            </button>
+
+            {/* Dropdown */}
+            {showProjectDropdown && !collapsed && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+                background: '#fff', border: '1px solid #dfe1e6', borderTop: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+              }}>
+                {projects.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setActiveProjectIdPersisted(p.id); setShowProjectDropdown(false) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      width: '100%', padding: '9px 16px', boxSizing: 'border-box',
+                      background: activeProjectId === p.id ? '#e9f2ff' : 'none',
+                      border: 'none', borderBottom: '1px solid #f4f5f7',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => { if (activeProjectId !== p.id) (e.currentTarget as HTMLButtonElement).style.background = '#f4f5f7' }}
+                    onMouseLeave={e => { if (activeProjectId !== p.id) (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+                  >
+                    <div style={{
+                      width: 22, height: 22, borderRadius: 4, background: p.color, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontSize: 11, fontWeight: 700,
+                    }}>
+                      {p.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontSize: 13, color: activeProjectId === p.id ? '#0052cc' : '#172b4d', fontWeight: activeProjectId === p.id ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.name}
+                    </span>
+                    {activeProjectId === p.id && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#0052cc" strokeWidth="2" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                        <path d="M2 6l3 3 5-5"/>
+                      </svg>
+                    )}
+                  </button>
+                ))}
+                <button
+                  onClick={() => { setShowNewProjectModal(true); setShowProjectDropdown(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '9px 16px', boxSizing: 'border-box',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 12, color: '#0052cc', fontWeight: 600,
+                  }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = '#f4f5f7'}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                >
+                  + New project
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Nav section label */}
           {!collapsed && (

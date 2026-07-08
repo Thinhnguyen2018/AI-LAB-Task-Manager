@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
 import { KbDoc, KbCollection } from '../types'
 import { getKbDocs, updateKbDoc, deleteKbDoc, getKbCollections, createKbCollection, updateKbCollection, deleteKbCollection } from '../api'
 
@@ -264,6 +272,10 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
   const isMd = selected?.file_type === 'md'
   const isHtml = selected?.file_type === 'html'
 
+  const [numPages, setNumPages] = useState<number>(0)
+  const [pdfError, setPdfError] = useState(false)
+  useEffect(() => { setNumPages(0); setPdfError(false) }, [selected?.id])
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -406,17 +418,32 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
             {/* Content */}
             <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
               {isPdf && selected.file_url ? (
-                <object
-                  data={selected.file_url.replace('/upload/', '/upload/fl_attachment:false/')}
-                  type="application/pdf"
-                  style={{ width: '100%', height: '100%', border: 'none' }}
-                >
-                  <embed
-                    src={selected.file_url.replace('/upload/', '/upload/fl_attachment:false/')}
-                    type="application/pdf"
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </object>
+                <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: 8, background: '#525659' }}>
+                  {pdfError ? (
+                    <div style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginTop: 60 }}>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
+                      <div>Không thể hiển thị PDF</div>
+                      <a href={selected.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#4fc3f7', marginTop: 8, display: 'block' }}>Mở trong tab mới</a>
+                    </div>
+                  ) : (
+                    <Document
+                      file={selected.file_url}
+                      onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                      onLoadError={() => setPdfError(true)}
+                      loading={<div style={{ color: '#fff', marginTop: 40 }}>Đang tải PDF...</div>}
+                    >
+                      {Array.from({ length: numPages }, (_, i) => (
+                        <Page
+                          key={i + 1}
+                          pageNumber={i + 1}
+                          width={600}
+                          renderTextLayer={true}
+                          renderAnnotationLayer={true}
+                        />
+                      ))}
+                    </Document>
+                  )}
+                </div>
               ) : isHtml && selected.content ? (
                 <iframe
                   srcDoc={selected.content}

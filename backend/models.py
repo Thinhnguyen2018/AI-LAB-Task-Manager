@@ -35,6 +35,15 @@ class Note(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class KbCollection(Base):
+    __tablename__ = "kb_collections"
+    id = Column(String(50), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    project_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 class KbDoc(Base):
     __tablename__ = "kb_docs"
     id = Column(String(50), primary_key=True)
@@ -42,6 +51,7 @@ class KbDoc(Base):
     content = Column(Text, nullable=False, default="")
     category = Column(String(100), nullable=False, default="General")
     project_id = Column(Integer, nullable=True)
+    collection_id = Column(String(50), nullable=True)
     file_url = Column(String(500), nullable=True)
     file_public_id = Column(String(200), nullable=True)
     file_type = Column(String(20), nullable=True)

@@ -1,26 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { KbDoc } from '../types'
-import { getKbDocs, updateKbDoc, deleteKbDoc } from '../api'
+import { KbDoc, KbCollection } from '../types'
+import { getKbDocs, updateKbDoc, deleteKbDoc, getKbCollections, createKbCollection, updateKbCollection, deleteKbCollection } from '../api'
 
 interface Props {
   activeProjectId: number | null
 }
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
-
-const DEFAULT_CATEGORIES = ['General', 'Architecture', 'Research', 'Runbook', 'Meeting Summary', 'Reference']
-
-const CAT_COLORS: Record<string, string> = {
-  'General': '#6b778c',
-  'Architecture': '#0052cc',
-  'Research': '#6554c0',
-  'Runbook': '#ff8b00',
-  'Meeting Summary': '#00875a',
-  'Reference': '#de350b',
-}
-const getCatColor = (cat: string) => CAT_COLORS[cat] ?? '#6b778c'
 
 const FILE_ICONS: Record<string, string> = {
   pdf: '📄', docx: '📝', doc: '📝', txt: '📃', md: '📃',
@@ -29,6 +17,12 @@ const FILE_ICONS: Record<string, string> = {
 }
 const getFileIcon = (type?: string) => FILE_ICONS[type ?? ''] ?? '📁'
 
+const TYPE_COLORS: Record<string, string> = {
+  pdf: '#de350b', docx: '#0052cc', doc: '#0052cc', md: '#6554c0',
+  txt: '#6b778c', png: '#00875a', jpg: '#00875a', xlsx: '#36b37e',
+}
+const getTypeColor = (type?: string) => TYPE_COLORS[type ?? ''] ?? '#6b778c'
+
 function formatSize(bytes?: number): string {
   if (!bytes) return ''
   if (bytes < 1024) return `${bytes} B`
@@ -36,56 +30,181 @@ function formatSize(bytes?: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-export default function KnowledgeBase({ activeProjectId }: Props) {
-  const [docs, setDocs] = useState<KbDoc[]>([])
+// ── Collection List (index) ──────────────────────────────────────────────────
+function CollectionList({ projectId, onOpen }: { projectId: number; onOpen: (c: KbCollection) => void }) {
+  const [collections, setCollections] = useState<KbCollection[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<string | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [category, setCategory] = useState('General')
-  const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
-  const [filterCat, setFilterCat] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [uploadCategory, setUploadCategory] = useState('General')
-  const [dragOver, setDragOver] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newDesc, setNewDesc] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    if (activeProjectId == null) { setDocs([]); setLoading(false); return }
     setLoading(true)
-    try {
-      const data = await getKbDocs(activeProjectId)
-      setDocs(data)
-      setSelected(prev => data.find(d => d.id === prev) ? prev : data[0]?.id ?? null)
-    } finally {
-      setLoading(false)
-    }
-  }, [activeProjectId])
+    try { setCollections(await getKbCollections(projectId)) }
+    finally { setLoading(false) }
+  }, [projectId])
 
   useEffect(() => { load() }, [load])
 
-  const selectedDoc = docs.find(d => d.id === selected) ?? null
+  const handleCreate = async () => {
+    if (!newName.trim()) return
+    setSaving(true)
+    try {
+      const col = await createKbCollection({ name: newName.trim(), description: newDesc.trim() || undefined, project_id: projectId })
+      setCollections(prev => [col, ...prev])
+      setCreating(false); setNewName(''); setNewDesc('')
+    } finally { setSaving(false) }
+  }
 
-  useEffect(() => {
-    if (selectedDoc) {
-      setTitle(selectedDoc.title)
-      setContent(selectedDoc.content)
-      setCategory(selectedDoc.category)
-      setEditing(false)
-    }
-  }, [selected])
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('Delete this knowledge base and all its files?')) return
+    await deleteKbCollection(id)
+    setCollections(prev => prev.filter(c => c.id !== id))
+  }
+
+  const filtered = collections.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.description ?? '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#172b4d' }}>Knowledge Base</h1>
+        <button
+          onClick={() => setCreating(true)}
+          style={{ background: '#172b4d', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Create new Knowledge Base
+        </button>
+      </div>
+
+      {/* Search */}
+      <input
+        placeholder="Search by name..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ width: '100%', padding: '8px 12px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, outline: 'none', marginBottom: 16, boxSizing: 'border-box', color: '#172b4d' }}
+      />
+
+      {/* Create modal */}
+      {creating && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(9,30,66,0.54)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: 32, width: 480, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: '#172b4d' }}>New Knowledge Base</h2>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b778c', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name *</label>
+            <input
+              autoFocus
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              placeholder="e.g. Research Documents"
+              style={{ width: '100%', padding: '9px 12px', border: '2px solid #0052cc', borderRadius: 4, fontSize: 14, outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+            />
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b778c', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</label>
+            <textarea
+              value={newDesc}
+              onChange={e => setNewDesc(e.target.value)}
+              placeholder="Optional description..."
+              rows={3}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box', color: '#172b4d' }}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setCreating(false); setNewName(''); setNewDesc('') }}
+                style={{ padding: '8px 16px', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: '#42526e' }}>
+                Cancel
+              </button>
+              <button onClick={handleCreate} disabled={saving || !newName.trim()}
+                style={{ padding: '8px 20px', background: '#0052cc', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <p style={{ color: '#6b778c', fontSize: 14 }}>Loading...</p>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: '#6b778c' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📚</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#172b4d', marginBottom: 6 }}>No knowledge bases yet</div>
+          <div style={{ fontSize: 13 }}>Create one to start organizing your documents</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, border: '1px solid #dfe1e6', borderRadius: 6, overflow: 'hidden' }}>
+          {filtered.map((col, i) => (
+            <div
+              key={col.id}
+              onClick={() => onOpen(col)}
+              style={{
+                display: 'flex', alignItems: 'center', padding: '16px 20px',
+                borderTop: i > 0 ? '1px solid #dfe1e6' : 'none',
+                cursor: 'pointer', background: '#fff',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: '#e9f2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, marginRight: 16, flexShrink: 0 }}>
+                📚
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#172b4d' }}>{col.name}</div>
+                <div style={{ fontSize: 12, color: '#6b778c', marginTop: 2 }}>{col.description || 'No description'}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: '#6b778c', background: '#f4f5f7', borderRadius: 3, padding: '2px 8px' }}>
+                  {col.file_count} {col.file_count === 1 ? 'file' : 'files'}
+                </span>
+                <span style={{ fontSize: 11, color: '#6b778c' }}>{new Date(col.updated_at).toLocaleDateString()}</span>
+                <button
+                  onClick={e => handleDelete(col.id, e)}
+                  style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 16, padding: '2px 6px', borderRadius: 3, lineHeight: 1 }}
+                  title="Delete"
+                >🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Collection Detail (files inside) ────────────────────────────────────────
+function CollectionDetail({ collection, onBack }: { collection: KbCollection; onBack: () => void }) {
+  const [docs, setDocs] = useState<KbDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<KbDoc | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [colName, setColName] = useState(collection.name)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await getKbDocs(collection.id)
+      setDocs(data)
+    } finally { setLoading(false) }
+  }, [collection.id])
+
+  useEffect(() => { load() }, [load])
 
   const uploadFile = async (file: File) => {
-    if (activeProjectId == null) return
     setUploading(true)
     try {
       const token = localStorage.getItem('auth_token')
       const form = new FormData()
       form.append('file', file)
-      form.append('project_id', String(activeProjectId))
-      form.append('category', uploadCategory)
+      form.append('collection_id', collection.id)
+      form.append('category', 'General')
       const res = await fetch(`${BASE}/kb/upload`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -98,61 +217,221 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
       }
       const doc: KbDoc = await res.json()
       setDocs(prev => [doc, ...prev])
-      setSelected(doc.id)
-    } finally {
-      setUploading(false)
-    }
+    } finally { setUploading(false) }
   }
 
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
-    for (const file of Array.from(files)) await uploadFile(file)
+    for (const f of Array.from(files)) await uploadFile(f)
     e.target.value = ''
   }
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault(); setDragOver(false)
-    for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
-  }
-
-  const handleSave = async () => {
-    if (!selected) return
-    setSaving(true)
-    try {
-      const updated = await updateKbDoc(selected, { title, content, category })
-      setDocs(prev => prev.map(d => d.id === selected ? updated : d))
-      setEditing(false)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this document?')) return
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('Delete this file?')) return
     await deleteKbDoc(id)
-    const remaining = docs.filter(d => d.id !== id)
-    setDocs(remaining)
-    setSelected(remaining[0]?.id ?? null)
+    setDocs(prev => prev.filter(d => d.id !== id))
+    if (selected?.id === id) setSelected(null)
   }
 
-  const allCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...docs.map(d => d.category)]))
-  const usedCats = Array.from(new Set(docs.map(d => d.category)))
+  const handleSaveName = async () => {
+    if (!colName.trim()) return
+    await updateKbCollection(collection.id, { name: colName.trim() })
+    setEditingName(false)
+  }
 
-  const filteredDocs = docs.filter(d => {
-    if (filterCat && d.category !== filterCat) return false
-    if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.content.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  const isPdf = selected?.file_type === 'pdf'
+  const isImage = selected?.file_type && ['png', 'jpg', 'jpeg', 'gif'].includes(selected.file_type)
+  const isMd = selected?.file_type === 'md'
 
-  const groupedDocs = usedCats.reduce<Record<string, KbDoc[]>>((acc, cat) => {
-    const catDocs = filteredDocs.filter(d => d.category === cat)
-    if (catDocs.length > 0) acc[cat] = catDocs
-    return acc
-  }, {})
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
+      <div style={{ padding: '20px 28px', borderBottom: '1px solid #dfe1e6', flexShrink: 0 }}>
+        {/* Breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: '#6b778c' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#0052cc', cursor: 'pointer', fontSize: 13, padding: 0, fontWeight: 500 }}>
+            Knowledge base
+          </button>
+          <span>›</span>
+          <span style={{ color: '#172b4d', fontWeight: 500 }}>{collection.name}</span>
+        </div>
 
-  const isPdf = selectedDoc?.file_type === 'pdf'
-  const isImage = selectedDoc?.file_type && ['png', 'jpg', 'jpeg', 'gif'].includes(selectedDoc.file_type)
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {editingName ? (
+            <input
+              autoFocus
+              value={colName}
+              onChange={e => setColName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
+              onBlur={handleSaveName}
+              style={{ fontSize: 22, fontWeight: 700, color: '#172b4d', border: 'none', borderBottom: '2px solid #0052cc', outline: 'none', padding: '2px 0', background: 'none', flex: 1 }}
+            />
+          ) : (
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#172b4d', flex: 1 }}>{colName}</h1>
+          )}
+          <button onClick={() => setEditingName(true)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b778c', fontSize: 16, padding: '4px 6px' }}
+            title="Rename">✏️</button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            style={{ background: '#0052cc', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: uploading ? 0.7 : 1 }}
+          >
+            {uploading ? '⏳ Uploading...' : '↑ Upload'}
+          </button>
+          <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.xlsx,.pptx" style={{ display: 'none' }} onChange={handleFiles} />
+        </div>
+
+        {/* Meta */}
+        <div style={{ display: 'flex', gap: 24, marginTop: 10, fontSize: 12, color: '#6b778c' }}>
+          <span><span style={{ color: '#42526e', fontWeight: 500 }}>ID</span>&nbsp;&nbsp;{collection.id}</span>
+          <span><span style={{ color: '#42526e', fontWeight: 500 }}>{docs.length}</span> files</span>
+          <span><span style={{ color: '#42526e', fontWeight: 500 }}>Updated</span>&nbsp;&nbsp;{new Date(collection.updated_at).toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      {/* Body: file list + viewer */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {/* File list */}
+        <div style={{ flex: selected ? '0 0 480px' : '1', borderRight: selected ? '1px solid #dfe1e6' : 'none', overflowY: 'auto' }}>
+          {loading ? (
+            <p style={{ color: '#6b778c', fontSize: 13, padding: 20 }}>Loading...</p>
+          ) : docs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#6b778c' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#172b4d', marginBottom: 6 }}>No files yet</div>
+              <div style={{ fontSize: 13 }}>Click Upload to add documents</div>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <tbody>
+                {docs.map(doc => (
+                  <tr
+                    key={doc.id}
+                    onClick={() => setSelected(s => s?.id === doc.id ? null : doc)}
+                    style={{
+                      borderBottom: '1px solid #dfe1e6',
+                      cursor: 'pointer',
+                      background: selected?.id === doc.id ? '#e9f2ff' : '#fff',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => { if (selected?.id !== doc.id) e.currentTarget.style.background = '#f4f5f7' }}
+                    onMouseLeave={e => { if (selected?.id !== doc.id) e.currentTarget.style.background = '#fff' }}
+                  >
+                    <td style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>{getFileIcon(doc.file_type)}</span>
+                      <span style={{ flex: 1, color: '#172b4d', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.title}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#36b37e', fontWeight: 700, flexShrink: 0 }}>Completed</span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, flexShrink: 0,
+                        color: getTypeColor(doc.file_type),
+                        background: `${getTypeColor(doc.file_type)}18`,
+                        padding: '2px 7px', borderRadius: 3,
+                      }}>
+                        {doc.file_type?.toUpperCase() ?? 'FILE'}
+                      </span>
+                      {doc.file_url && (
+                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer" download
+                          onClick={e => e.stopPropagation()}
+                          style={{ color: '#6b778c', fontSize: 15, flexShrink: 0, textDecoration: 'none' }}
+                          title="Download">↓</a>
+                      )}
+                      <button onClick={e => handleDelete(doc.id, e)}
+                        style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}
+                        title="Delete">🗑</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* File viewer */}
+        {selected && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            {/* Viewer header */}
+            <div style={{ padding: '10px 20px', borderBottom: '1px solid #dfe1e6', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, background: '#fff' }}>
+              <span style={{ fontSize: 18 }}>{getFileIcon(selected.file_type)}</span>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#172b4d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.title}</span>
+              <span style={{ fontSize: 12, color: '#6b778c' }}>{formatSize(selected.file_size)}</span>
+              {selected.file_url && (
+                <a href={selected.file_url} target="_blank" rel="noopener noreferrer" download
+                  style={{ padding: '5px 12px', background: '#0052cc', color: '#fff', borderRadius: 4, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                  ↓ Download
+                </a>
+              )}
+              <button onClick={() => setSelected(null)}
+                style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 4px' }}>×</button>
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflow: 'hidden', background: '#f4f5f7' }}>
+              {isPdf && selected.file_url ? (
+                <iframe src={selected.file_url} style={{ width: '100%', height: '100%', border: 'none' }} title={selected.title} />
+              ) : isImage && selected.file_url ? (
+                <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: 24 }}>
+                  <img src={selected.file_url} alt={selected.title} style={{ maxWidth: '100%', borderRadius: 6, boxShadow: '0 2px 16px rgba(0,0,0,0.12)' }} />
+                </div>
+              ) : (
+                <div style={{ height: '100%', overflowY: 'auto', padding: 24 }}>
+                  <div style={{ background: '#fff', borderRadius: 4, padding: '24px 32px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    {selected.content ? (
+                      isMd ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h1: ({ children }) => <h1 style={{ fontSize: 24, fontWeight: 700, color: '#172b4d', margin: '0 0 16px', paddingBottom: 8, borderBottom: '2px solid #dfe1e6' }}>{children}</h1>,
+                            h2: ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 700, color: '#172b4d', margin: '24px 0 10px' }}>{children}</h2>,
+                            h3: ({ children }) => <h3 style={{ fontSize: 15, fontWeight: 600, color: '#172b4d', margin: '18px 0 8px' }}>{children}</h3>,
+                            p: ({ children }) => <p style={{ margin: '0 0 12px', lineHeight: 1.8, color: '#172b4d', fontSize: 14 }}>{children}</p>,
+                            ul: ({ children }) => <ul style={{ margin: '0 0 12px', paddingLeft: 24 }}>{children}</ul>,
+                            ol: ({ children }) => <ol style={{ margin: '0 0 12px', paddingLeft: 24 }}>{children}</ol>,
+                            li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.7, fontSize: 14, color: '#172b4d' }}>{children}</li>,
+                            code: ({ inline, children }: any) => inline
+                              ? <code style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 3, padding: '1px 5px', fontSize: 12, fontFamily: 'monospace', color: '#de350b' }}>{children}</code>
+                              : <pre style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 4, padding: '12px 16px', overflowX: 'auto', margin: '12px 0' }}><code style={{ fontSize: 13, fontFamily: 'monospace', color: '#172b4d' }}>{children}</code></pre>,
+                            blockquote: ({ children }) => <blockquote style={{ borderLeft: '4px solid #0052cc', margin: '12px 0', padding: '8px 16px', background: '#e9f2ff', borderRadius: '0 4px 4px 0' }}>{children}</blockquote>,
+                            hr: () => <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />,
+                            a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#0052cc', textDecoration: 'none' }}>{children}</a>,
+                            table: ({ children }) => <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>{children}</table></div>,
+                            th: ({ children }) => <th style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', padding: '8px 12px', textAlign: 'left', fontWeight: 600 }}>{children}</th>,
+                            td: ({ children }) => <td style={{ border: '1px solid #dfe1e6', padding: '8px 12px', color: '#42526e' }}>{children}</td>,
+                          }}
+                        >
+                          {selected.content}
+                        </ReactMarkdown>
+                      ) : (
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8, color: '#172b4d', fontFamily: 'inherit' }}>
+                          {selected.content}
+                        </pre>
+                      )
+                    ) : (
+                      <div style={{ color: '#6b778c', fontSize: 14, textAlign: 'center', padding: '40px 0' }}>
+                        <div style={{ fontSize: 32, marginBottom: 8 }}>{getFileIcon(selected.file_type)}</div>
+                        <div style={{ fontWeight: 600, color: '#172b4d', marginBottom: 4 }}>File uploaded to cloud</div>
+                        <div>Click Download to access the original file</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Root component ───────────────────────────────────────────────────────────
+export default function KnowledgeBase({ activeProjectId }: Props) {
+  const [openCollection, setOpenCollection] = useState<KbCollection | null>(null)
 
   if (activeProjectId == null) {
     return (
@@ -162,257 +441,17 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
     )
   }
 
+  if (openCollection) {
+    return (
+      <div style={{ height: 'calc(100vh - 88px)', display: 'flex', flexDirection: 'column' }}>
+        <CollectionDetail collection={openCollection} onBack={() => setOpenCollection(null)} />
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 88px)', gap: 0 }}>
-      {/* ── Sidebar ── */}
-      <div style={{ width: 260, minWidth: 260, background: '#fff', borderRight: '1px solid #dfe1e6', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* Search + category selector */}
-        <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid #dfe1e6', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input
-            placeholder="Search documents..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '7px 10px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, outline: 'none', boxSizing: 'border-box', color: '#172b4d' }}
-          />
-          <select value={uploadCategory} onChange={e => setUploadCategory(e.target.value)}
-            style={{ padding: '6px 8px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 12, outline: 'none', color: '#42526e' }}>
-            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-
-          {/* Drop zone */}
-          <div
-            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragOver ? '#0052cc' : '#dfe1e6'}`,
-              borderRadius: 6, padding: '14px 8px', textAlign: 'center',
-              cursor: uploading ? 'wait' : 'pointer',
-              background: dragOver ? '#e9f2ff' : '#f4f5f7',
-              transition: 'all 0.15s',
-            }}
-          >
-            <div style={{ fontSize: 22, marginBottom: 4 }}>{uploading ? '⏳' : '☁️'}</div>
-            <div style={{ fontSize: 12, color: '#42526e', fontWeight: 600 }}>
-              {uploading ? 'Uploading...' : 'Click or drag & drop'}
-            </div>
-            <div style={{ fontSize: 11, color: '#6b778c', marginTop: 2 }}>PDF · DOCX · TXT · MD · Images</div>
-          </div>
-          <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.xlsx,.pptx" style={{ display: 'none' }} onChange={handleFileInput} />
-        </div>
-
-        {/* Category filter chips */}
-        {usedCats.length > 1 && (
-          <div style={{ padding: '8px 12px', display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: '1px solid #dfe1e6' }}>
-            <button onClick={() => setFilterCat('')}
-              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #dfe1e6', background: filterCat === '' ? '#0052cc' : '#f4f5f7', color: filterCat === '' ? '#fff' : '#6b778c', cursor: 'pointer', fontWeight: 600 }}>
-              All
-            </button>
-            {usedCats.map(c => (
-              <button key={c} onClick={() => setFilterCat(c === filterCat ? '' : c)}
-                style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: `1px solid ${getCatColor(c)}40`, background: filterCat === c ? getCatColor(c) : `${getCatColor(c)}15`, color: filterCat === c ? '#fff' : getCatColor(c), cursor: 'pointer', fontWeight: 600 }}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Doc list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-          {loading ? (
-            <p style={{ color: '#6b778c', fontSize: 13, textAlign: 'center', padding: 20 }}>Loading...</p>
-          ) : filteredDocs.length === 0 ? (
-            <div style={{ color: '#6b778c', fontSize: 13, textAlign: 'center', padding: 24 }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>No documents yet</div>
-              <div style={{ fontSize: 12 }}>Upload a file to get started</div>
-            </div>
-          ) : (
-            Object.entries(groupedDocs).map(([cat, catDocs]) => (
-              <div key={cat}>
-                <div style={{ padding: '8px 16px 4px', fontSize: 10, fontWeight: 700, color: getCatColor(cat), letterSpacing: '0.08em', textTransform: 'uppercase' }}>{cat}</div>
-                {catDocs.map(doc => (
-                  <button key={doc.id} onClick={() => setSelected(doc.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      width: '100%', textAlign: 'left',
-                      padding: '8px 14px', border: 'none', cursor: 'pointer',
-                      background: selected === doc.id ? '#e9f2ff' : 'none',
-                      borderLeft: selected === doc.id ? `3px solid ${getCatColor(cat)}` : '3px solid transparent',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <span style={{ fontSize: 16, flexShrink: 0 }}>{getFileIcon(doc.file_type)}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: selected === doc.id ? 600 : 400, color: selected === doc.id ? '#0052cc' : '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title}</div>
-                      <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1, display: 'flex', gap: 6 }}>
-                        <span>{doc.file_type?.toUpperCase() ?? 'DOC'}</span>
-                        {doc.file_size && <span>{formatSize(doc.file_size)}</span>}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ── Viewer / Editor ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
-        {!selectedDoc ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b778c', fontSize: 14, flexDirection: 'column', gap: 12, background: '#f4f5f7' }}>
-            <span style={{ fontSize: 48 }}>📄</span>
-            <span style={{ fontWeight: 600, color: '#172b4d' }}>Select a document</span>
-            <span style={{ fontSize: 13 }}>or upload a new file from the left panel</span>
-          </div>
-        ) : (
-          <>
-            {/* Toolbar */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid #dfe1e6', display: 'flex', alignItems: 'center', gap: 10, background: '#fff', flexShrink: 0 }}>
-              {/* File icon + info */}
-              <span style={{ fontSize: 24, flexShrink: 0 }}>{getFileIcon(selectedDoc.file_type)}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {editing ? (
-                  <input value={title} onChange={e => setTitle(e.target.value)}
-                    style={{ width: '100%', fontSize: 16, fontWeight: 700, color: '#172b4d', border: 'none', borderBottom: '2px solid #0052cc', outline: 'none', padding: '2px 0', background: 'none' }} />
-                ) : (
-                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedDoc.title}</h2>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
-                  {editing ? (
-                    <select value={category} onChange={e => setCategory(e.target.value)}
-                      style={{ padding: '3px 6px', border: '1px solid #dfe1e6', borderRadius: 3, fontSize: 11, outline: 'none', color: '#42526e' }}>
-                      {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  ) : (
-                    <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, background: `${getCatColor(selectedDoc.category)}18`, color: getCatColor(selectedDoc.category), fontWeight: 700, letterSpacing: '0.03em' }}>
-                      {selectedDoc.category}
-                    </span>
-                  )}
-                  {selectedDoc.file_type && (
-                    <span style={{ fontSize: 11, color: '#6b778c' }}>{selectedDoc.file_type.toUpperCase()}</span>
-                  )}
-                  {selectedDoc.file_size && (
-                    <span style={{ fontSize: 11, color: '#6b778c' }}>{formatSize(selectedDoc.file_size)}</span>
-                  )}
-                  <span style={{ fontSize: 11, color: '#6b778c' }}>· Updated {new Date(selectedDoc.updated_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                {selectedDoc.file_url && (
-                  <a
-                    href={selectedDoc.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={`${selectedDoc.title}.${selectedDoc.file_type}`}
-                    style={{ padding: '6px 14px', background: '#0052cc', color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                  >
-                    ↓ Download
-                  </a>
-                )}
-                {editing ? (
-                  <>
-                    <button onClick={handleSave} disabled={saving}
-                      style={{ padding: '6px 14px', background: '#0052cc', border: 'none', borderRadius: 4, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button onClick={() => { setTitle(selectedDoc.title); setContent(selectedDoc.content); setCategory(selectedDoc.category); setEditing(false) }}
-                      style={{ padding: '6px 12px', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: '#42526e' }}>
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => setEditing(true)}
-                      style={{ padding: '6px 14px', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: '#42526e' }}>
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(selectedDoc.id)}
-                      style={{ padding: '6px 12px', background: '#fff', border: '1px solid #ffbdad', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: '#de350b' }}>
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#f4f5f7' }}>
-              {editing ? (
-                <textarea value={content} onChange={e => setContent(e.target.value)}
-                  style={{ flex: 1, padding: 24, border: 'none', outline: 'none', fontSize: 14, lineHeight: 1.7, resize: 'none', fontFamily: '"SF Mono","Fira Code",monospace', color: '#172b4d', background: '#fff', margin: 16, borderRadius: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }} />
-              ) : isPdf && selectedDoc.file_url ? (
-                /* PDF viewer via iframe */
-                <iframe
-                  src={selectedDoc.file_url}
-                  style={{ flex: 1, border: 'none', width: '100%', height: '100%', background: '#fff' }}
-                  title={selectedDoc.title}
-                />
-              ) : isImage && selectedDoc.file_url ? (
-                /* Image viewer */
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24 }}>
-                  <img
-                    src={selectedDoc.file_url}
-                    alt={selectedDoc.title}
-                    style={{ maxWidth: '100%', borderRadius: 6, boxShadow: '0 2px 16px rgba(0,0,0,0.12)' }}
-                  />
-                </div>
-              ) : (
-                /* Text / Markdown content */
-                <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-                  <div style={{ background: '#fff', borderRadius: 4, padding: '24px 32px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minHeight: 200 }}>
-                    {selectedDoc.content ? (
-                      selectedDoc.file_type === 'md' ? (
-                        <div style={{ fontSize: 14, lineHeight: 1.8, color: '#172b4d' }} className="md-body">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              h1: ({ children }) => <h1 style={{ fontSize: 24, fontWeight: 700, color: '#172b4d', margin: '0 0 16px', paddingBottom: 8, borderBottom: '2px solid #dfe1e6' }}>{children}</h1>,
-                              h2: ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 700, color: '#172b4d', margin: '24px 0 10px' }}>{children}</h2>,
-                              h3: ({ children }) => <h3 style={{ fontSize: 15, fontWeight: 600, color: '#172b4d', margin: '18px 0 8px' }}>{children}</h3>,
-                              p: ({ children }) => <p style={{ margin: '0 0 12px', lineHeight: 1.8 }}>{children}</p>,
-                              ul: ({ children }) => <ul style={{ margin: '0 0 12px', paddingLeft: 24 }}>{children}</ul>,
-                              ol: ({ children }) => <ol style={{ margin: '0 0 12px', paddingLeft: 24 }}>{children}</ol>,
-                              li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.7 }}>{children}</li>,
-                              code: ({ inline, children }: any) => inline
-                                ? <code style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 3, padding: '1px 5px', fontSize: 12, fontFamily: '"SF Mono","Fira Code",monospace', color: '#de350b' }}>{children}</code>
-                                : <pre style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 4, padding: '12px 16px', overflowX: 'auto', margin: '12px 0' }}><code style={{ fontSize: 13, fontFamily: '"SF Mono","Fira Code",monospace', color: '#172b4d' }}>{children}</code></pre>,
-                              blockquote: ({ children }) => <blockquote style={{ borderLeft: '4px solid #0052cc', margin: '12px 0', padding: '8px 16px', background: '#e9f2ff', borderRadius: '0 4px 4px 0', color: '#0747a6' }}>{children}</blockquote>,
-                              hr: () => <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />,
-                              strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#172b4d' }}>{children}</strong>,
-                              a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#0052cc', textDecoration: 'none', borderBottom: '1px solid #0052cc40' }}>{children}</a>,
-                              table: ({ children }) => <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>{children}</table></div>,
-                              th: ({ children }) => <th style={{ background: '#f4f5f7', border: '1px solid #dfe1e6', padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#172b4d' }}>{children}</th>,
-                              td: ({ children }) => <td style={{ border: '1px solid #dfe1e6', padding: '8px 12px', color: '#42526e' }}>{children}</td>,
-                            }}
-                          >
-                            {selectedDoc.content}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8, color: '#172b4d', fontFamily: 'inherit' }}>
-                          {selectedDoc.content}
-                        </pre>
-                      )
-                    ) : (
-                      <div style={{ color: '#6b778c', fontSize: 14, textAlign: 'center', marginTop: 40 }}>
-                        <div style={{ fontSize: 32, marginBottom: 8 }}>{getFileIcon(selectedDoc.file_type)}</div>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>File uploaded successfully</div>
-                        <div>Click Download to access the original file</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+    <div style={{ height: 'calc(100vh - 88px)', overflowY: 'auto' }}>
+      <CollectionList projectId={activeProjectId} onOpen={setOpenCollection} />
     </div>
   )
 }

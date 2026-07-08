@@ -1,4 +1,4 @@
-import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc } from './types'
+import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc, KbCollection } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -81,9 +81,19 @@ export const createComment = (taskId: number, author: string, content: string): 
 export const deleteComment = (commentId: number): Promise<void> =>
   request(`/comments/${commentId}`, { method: 'DELETE' })
 
-export const getKbDocs = (projectId: number): Promise<KbDoc[]> => request(`/kb?project_id=${projectId}`)
-export const createKbDoc = (doc: { id: string; title: string; content: string; category: string; project_id?: number }): Promise<KbDoc> =>
-  request('/kb', { method: 'POST', body: JSON.stringify(doc) })
+// KB Collections
+export const getKbCollections = (projectId: number): Promise<KbCollection[]> =>
+  request(`/kb-collections?project_id=${projectId}`)
+export const createKbCollection = (data: { name: string; description?: string; project_id?: number }): Promise<KbCollection> =>
+  request('/kb-collections', { method: 'POST', body: JSON.stringify(data) })
+export const updateKbCollection = (id: string, data: { name?: string; description?: string }): Promise<KbCollection> =>
+  request(`/kb-collections/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteKbCollection = (id: string): Promise<void> =>
+  request(`/kb-collections/${id}`, { method: 'DELETE' })
+
+// KB Docs
+export const getKbDocs = (collectionId: string): Promise<KbDoc[]> =>
+  request(`/kb?collection_id=${collectionId}`)
 export const updateKbDoc = (id: string, data: { title?: string; content?: string; category?: string }): Promise<KbDoc> =>
   request(`/kb/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteKbDoc = (id: string): Promise<void> =>

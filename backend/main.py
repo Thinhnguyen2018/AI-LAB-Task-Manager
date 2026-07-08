@@ -117,12 +117,23 @@ with engine.connect() as conn:
             UNIQUE(project_id, user_id)
         )
     """))
-    # Migrations for kb_docs Cloudinary columns
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS kb_collections (
+            id VARCHAR(50) PRIMARY KEY,
+            name VARCHAR(200) NOT NULL,
+            description TEXT,
+            project_id INTEGER,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
+    # Migrations
     for col, typ in [
         ("file_url", "VARCHAR(500)"),
         ("file_public_id", "VARCHAR(200)"),
         ("file_type", "VARCHAR(20)"),
         ("file_size", "INTEGER"),
+        ("collection_id", "VARCHAR(50)"),
     ]:
         try:
             conn.execute(text(f"ALTER TABLE kb_docs ADD COLUMN IF NOT EXISTS {col} {typ}"))
@@ -254,20 +265,59 @@ def delete_note(note_id: str, db: Session = Depends(get_db)):
     db.delete(db_note)
     db.commit()
 
-@app.get("/kb", response_model=List[schemas.KbDocOut])
-def get_kb_docs(project_id: int = None, db: Session = Depends(get_db)):
-    q = db.query(models.KbDoc)
-    if project_id is not None:
-        q = q.filter(models.KbDoc.project_id == project_id)
-    return q.order_by(models.KbDoc.updated_at.desc()).all()
+# ── KB Collections ──
 
-@app.post("/kb", response_model=schemas.KbDocOut)
-def create_kb_doc(doc: schemas.KbDocCreate, db: Session = Depends(get_db)):
-    db_doc = models.KbDoc(**doc.model_dump())
-    db.add(db_doc)
+@app.get("/kb-collections", response_model=List[schemas.KbCollectionOut])
+def get_collections(project_id: int = None, db: Session = Depends(get_db)):
+    q = db.query(models.KbCollection)
+    if project_id is not None:
+        q = q.filter(models.KbCollection.project_id == project_id)
+    collections = q.order_by(models.KbCollection.created_at.desc()).all()
+    result = []
+    for col in collections:
+        count = db.query(models.KbDoc).filter(models.KbDoc.collection_id == col.id).count()
+        out = schemas.KbCollectionOut(
+            id=col.id, name=col.name, description=col.description,
+            project_id=col.project_id, created_at=col.created_at, updated_at=col.updated_at,
+            file_count=count,
+        )
+        result.append(out)
+    return result
+
+@app.post("/kb-collections", response_model=schemas.KbCollectionOut)
+def create_collection(body: schemas.KbCollectionCreate, db: Session = Depends(get_db)):
+    col_id = f"kb-{int(time.time() * 1000)}"
+    col = models.KbCollection(id=col_id, name=body.name, description=body.description, project_id=body.project_id)
+    db.add(col)
     db.commit()
-    db.refresh(db_doc)
-    return db_doc
+    db.refresh(col)
+    return schemas.KbCollectionOut(id=col.id, name=col.name, description=col.description,
+                                   project_id=col.project_id, created_at=col.created_at,
+                                   updated_at=col.updated_at, file_count=0)
+
+@app.patch("/kb-collections/{col_id}", response_model=schemas.KbCollectionOut)
+def update_collection(col_id: str, body: schemas.KbCollectionUpdate, db: Session = Depends(get_db)):
+    col = db.query(models.KbCollection).filter(models.KbCollection.id == col_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(col, key, value)
+    db.commit()
+    db.refresh(col)
+    count = db.query(models.KbDoc).filter(models.KbDoc.collection_id == col_id).count()
+    return schemas.KbCollectionOut(id=col.id, name=col.name, description=col.description,
+                                   project_id=col.project_id, created_at=col.created_at,
+                                   updated_at=col.updated_at, file_count=count)
+
+@app.delete("/kb-collections/{col_id}", status_code=204)
+def delete_collection(col_id: str, db: Session = Depends(get_db)):
+    col = db.query(models.KbCollection).filter(models.KbCollection.id == col_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    db.query(models.KbDoc).filter(models.KbDoc.collection_id == col_id).delete()
+    db.delete(col)
+    db.commit()
+
 
 @app.patch("/kb/{doc_id}", response_model=schemas.KbDocOut)
 def update_kb_doc(doc_id: str, doc: schemas.KbDocUpdate, db: Session = Depends(get_db)):
@@ -289,10 +339,20 @@ def delete_kb_doc(doc_id: str, db: Session = Depends(get_db)):
     db.delete(db_doc)
     db.commit()
 
+@app.get("/kb", response_model=List[schemas.KbDocOut])
+def get_kb_docs_by_collection(collection_id: str = None, project_id: int = None, db: Session = Depends(get_db)):
+    q = db.query(models.KbDoc)
+    if collection_id:
+        q = q.filter(models.KbDoc.collection_id == collection_id)
+    elif project_id is not None:
+        q = q.filter(models.KbDoc.project_id == project_id)
+    return q.order_by(models.KbDoc.updated_at.desc()).all()
+
 @app.post("/kb/upload", response_model=schemas.KbDocOut)
 async def upload_kb_doc(
     file: UploadFile = File(...),
     project_id: Optional[int] = Form(None),
+    collection_id: Optional[str] = Form(None),
     category: str = Form("General"),
     db: Session = Depends(get_db)
 ):
@@ -345,7 +405,8 @@ async def upload_kb_doc(
     doc_id = f"doc-{int(time.time() * 1000)}"
     db_doc = models.KbDoc(
         id=doc_id, title=title, content=content, category=category,
-        project_id=project_id, file_url=file_url, file_public_id=file_public_id,
+        project_id=project_id, collection_id=collection_id,
+        file_url=file_url, file_public_id=file_public_id,
         file_type=ext, file_size=file_size,
     )
     db.add(db_doc)

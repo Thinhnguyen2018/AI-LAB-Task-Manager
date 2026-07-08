@@ -39,12 +39,23 @@ export interface Comment {
   created_at: string
 }
 
+export interface KbCollection {
+  id: string
+  name: string
+  description?: string
+  project_id?: number
+  file_count: number
+  created_at: string
+  updated_at: string
+}
+
 export interface KbDoc {
   id: string
   title: string
   content: string
   category: string
   project_id?: number
+  collection_id?: string
   file_url?: string
   file_public_id?: string
   file_type?: string

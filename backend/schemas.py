@@ -75,6 +75,25 @@ class NoteOut(BaseModel):
     updated_at: datetime
     model_config = {"from_attributes": True}
 
+class KbCollectionCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    project_id: Optional[int] = None
+
+class KbCollectionUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+class KbCollectionOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    project_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    file_count: int = 0
+    model_config = {"from_attributes": True}
+
 class KbDocCreate(BaseModel):
     id: str
     title: str
@@ -93,6 +112,7 @@ class KbDocOut(BaseModel):
     content: str
     category: str
     project_id: Optional[int] = None
+    collection_id: Optional[str] = None
     file_url: Optional[str] = None
     file_public_id: Optional[str] = None
     file_type: Optional[str] = None

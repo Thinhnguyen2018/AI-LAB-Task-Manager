@@ -66,8 +66,17 @@ Base.metadata.create_all(bind=engine)
 
 # Auto-migrate: add columns if missing; create tables
 with engine.connect() as conn:
-    for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)"), ("project_id", "INTEGER")]:
+    for col, coltype in [("month", "INTEGER"), ("week", "INTEGER"), ("note_id", "VARCHAR(50)"), ("project_id", "INTEGER"), ("board_id", "INTEGER")]:
         conn.execute(text(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS {col} {coltype}"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS boards (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
     conn.execute(text("ALTER TABLE notes ADD COLUMN IF NOT EXISTS project_id INTEGER"))
     conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS modules TEXT NOT NULL DEFAULT '[]'"))
     conn.execute(text("""

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { KbDoc } from '../types'
 import { getKbDocs, updateKbDoc, deleteKbDoc } from '../api'
 
@@ -369,6 +370,7 @@ export default function KnowledgeBase({ activeProjectId }: Props) {
                       selectedDoc.file_type === 'md' ? (
                         <div style={{ fontSize: 14, lineHeight: 1.8, color: '#172b4d' }} className="md-body">
                           <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
                             components={{
                               h1: ({ children }) => <h1 style={{ fontSize: 24, fontWeight: 700, color: '#172b4d', margin: '0 0 16px', paddingBottom: 8, borderBottom: '2px solid #dfe1e6' }}>{children}</h1>,
                               h2: ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 700, color: '#172b4d', margin: '24px 0 10px' }}>{children}</h2>,

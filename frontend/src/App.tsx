@@ -153,12 +153,17 @@ export default function App() {
     }).catch(() => setUserRole('member'))
   }, [activeProjectId, currentUser])
 
-  // Load boards when project changes
+  // Load boards when project changes; auto-create default board for old projects
   useEffect(() => {
     if (!activeProjectId) { setBoards([]); setActiveBoardId(null); return }
-    getBoards(activeProjectId).then(bs => {
-      setBoards(bs)
-      setActiveBoardId(prev => bs.find(b => b.id === prev) ? prev : (bs[0]?.id ?? null))
+    getBoards(activeProjectId).then(async bs => {
+      if (bs.length === 0) {
+        const b = await createBoard('Main Board', activeProjectId)
+        setBoards([b]); setActiveBoardId(b.id)
+      } else {
+        setBoards(bs)
+        setActiveBoardId(prev => bs.find(b => b.id === prev) ? prev : (bs[0]?.id ?? null))
+      }
     }).catch(() => setBoards([]))
   }, [activeProjectId])
 

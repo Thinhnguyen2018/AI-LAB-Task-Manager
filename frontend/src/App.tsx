@@ -14,7 +14,7 @@ import AuthPage from './components/AuthPage'
 import NewProjectModal from './components/NewProjectModal'
 import { AuthToken } from './api'
 
-type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'knowledge-base' | 'settings'
+type Tab = 'board' | 'roadmap' | 'milestones' | 'dashboard' | 'meeting-notes' | 'knowledge-base' | 'settings' | 'account-settings'
 
 const NAV: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'board', label: 'Board', icon: (

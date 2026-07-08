@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Task, TaskCreate, TaskUpdate, Project } from './types'
-import { getTasks, createTask, updateTask, deleteTask, getProjects, createProject, updateProject, deleteProject, authMe, updateMe, AuthUser, getMembers } from './api'
+import { getTasks, createTask, updateTask, deleteTask, getProjects, createProject, updateProject, deleteProject, authMe, AuthUser, getMembers } from './api'
 import Board from './components/Board'
 import Roadmap from './components/Roadmap'
 import FilterBar from './components/FilterBar'
@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard'
 import MeetingNotes from './components/MeetingNotes'
 import Settings from './components/Settings'
 import KnowledgeBase from './components/KnowledgeBase'
+import AccountSettingsPage from './components/AccountSettings'
 import AuthPage from './components/AuthPage'
 import NewProjectModal from './components/NewProjectModal'
 import { AuthToken } from './api'
@@ -91,13 +92,6 @@ export default function App() {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [showProjectDropdown, setShowProjectDropdown] = useState(false)
   const [showAccountMenu, setShowAccountMenu] = useState(false)
-  const [accountTab, setAccountTab] = useState<'info' | 'password'>('info')
-  const [accName, setAccName] = useState('')
-  const [accCurPw, setAccCurPw] = useState('')
-  const [accNewPw, setAccNewPw] = useState('')
-  const [accConfirmPw, setAccConfirmPw] = useState('')
-  const [accSaving, setAccSaving] = useState(false)
-  const [accMsg, setAccMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const accountMenuRef = useRef<HTMLDivElement>(null)
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null)
   const [editingProjectName, setEditingProjectName] = useState('')
@@ -143,38 +137,6 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showAccountMenu])
 
-  const openAccountMenu = () => {
-    setAccName(currentUser?.name ?? '')
-    setAccCurPw(''); setAccNewPw(''); setAccConfirmPw('')
-    setAccMsg(null); setAccountTab('info')
-    setShowAccountMenu(v => !v)
-  }
-
-  const handleSaveInfo = async () => {
-    if (!accName.trim()) return
-    setAccSaving(true); setAccMsg(null)
-    try {
-      const updated = await updateMe({ name: accName.trim() })
-      setCurrentUser(updated)
-      setAccMsg({ type: 'ok', text: 'Đã cập nhật tên thành công' })
-    } catch (e: any) {
-      setAccMsg({ type: 'err', text: e.message })
-    } finally { setAccSaving(false) }
-  }
-
-  const handleSavePassword = async () => {
-    if (!accCurPw || !accNewPw) return
-    if (accNewPw !== accConfirmPw) { setAccMsg({ type: 'err', text: 'Mật khẩu mới không khớp' }); return }
-    if (accNewPw.length < 6) { setAccMsg({ type: 'err', text: 'Mật khẩu tối thiểu 6 ký tự' }); return }
-    setAccSaving(true); setAccMsg(null)
-    try {
-      await updateMe({ current_password: accCurPw, new_password: accNewPw })
-      setAccMsg({ type: 'ok', text: 'Đổi mật khẩu thành công' })
-      setAccCurPw(''); setAccNewPw(''); setAccConfirmPw('')
-    } catch (e: any) {
-      setAccMsg({ type: 'err', text: e.message })
-    } finally { setAccSaving(false) }
-  }
 
   // Fetch role for current project
   useEffect(() => {
@@ -317,7 +279,7 @@ export default function App() {
         {/* User avatar + account menu */}
         <div ref={accountMenuRef} style={{ position: 'relative' }}>
           <button
-            onClick={openAccountMenu}
+            onClick={() => setShowAccountMenu(v => !v)}
             title={`${currentUser.name} — ${userRole}`}
             style={{
               width: 30, height: 30, borderRadius: '50%',
@@ -332,97 +294,36 @@ export default function App() {
 
           {showAccountMenu && (
             <div style={{
-              position: 'absolute', top: 'calc(100% + 10px)', right: 0, zIndex: 500,
-              background: '#fff', borderRadius: 8, width: 320,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #dfe1e6',
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 500,
+              background: '#fff', borderRadius: 6, width: 180,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.18)', border: '1px solid #dfe1e6',
               overflow: 'hidden',
             }}>
-              {/* Header */}
-              <div style={{ background: '#0052cc', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#0747a6', border: '2px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
-                  {currentUser.name.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.email}</div>
-                </div>
+              {/* User info row */}
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid #dfe1e6' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#172b4d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</div>
+                <div style={{ fontSize: 11, color: '#6b778c', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.email}</div>
               </div>
-
-              {/* Tabs */}
-              <div style={{ display: 'flex', borderBottom: '1px solid #dfe1e6' }}>
-                {(['info', 'password'] as const).map(t => (
-                  <button key={t} onClick={() => { setAccountTab(t); setAccMsg(null) }}
-                    style={{
-                      flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 600,
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: accountTab === t ? '#0052cc' : '#6b778c',
-                      borderBottom: accountTab === t ? '2px solid #0052cc' : '2px solid transparent',
-                    }}>
-                    {t === 'info' ? 'Thông tin' : 'Đổi mật khẩu'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Body */}
-              <div style={{ padding: '16px 20px' }}>
-                {accountTab === 'info' ? (
-                  <>
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Email</label>
-                      <div style={{ fontSize: 13, color: '#172b4d', background: '#f4f5f7', border: '1px solid #dfe1e6', borderRadius: 4, padding: '8px 10px' }}>{currentUser.email}</div>
-                    </div>
-                    <div style={{ marginBottom: 14 }}>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Tên hiển thị</label>
-                      <input
-                        value={accName}
-                        onChange={e => setAccName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSaveInfo()}
-                        style={{ width: '100%', fontSize: 13, color: '#172b4d', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, padding: '8px 10px', outline: 'none', boxSizing: 'border-box' }}
-                        onFocus={e => e.target.style.borderColor = '#0052cc'}
-                        onBlur={e => e.target.style.borderColor = '#dfe1e6'}
-                      />
-                    </div>
-                    {accMsg && <div style={{ fontSize: 12, color: accMsg.type === 'ok' ? '#36b37e' : '#de350b', marginBottom: 10, background: accMsg.type === 'ok' ? '#e3fcef' : '#ffebe6', padding: '6px 10px', borderRadius: 4 }}>{accMsg.text}</div>}
-                    <button onClick={handleSaveInfo} disabled={accSaving || !accName.trim()}
-                      style={{ width: '100%', padding: '8px 0', background: '#0052cc', color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: accSaving ? 0.7 : 1 }}>
-                      {accSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {(['Mật khẩu hiện tại', 'Mật khẩu mới', 'Xác nhận mật khẩu mới'] as const).map((label, i) => {
-                      const vals = [accCurPw, accNewPw, accConfirmPw]
-                      const setters = [setAccCurPw, setAccNewPw, setAccConfirmPw]
-                      return (
-                        <div key={i} style={{ marginBottom: 12 }}>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b778c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>{label}</label>
-                          <input
-                            type="password"
-                            value={vals[i]}
-                            onChange={e => setters[i](e.target.value)}
-                            style={{ width: '100%', fontSize: 13, color: '#172b4d', background: '#fff', border: '1px solid #dfe1e6', borderRadius: 4, padding: '8px 10px', outline: 'none', boxSizing: 'border-box' }}
-                            onFocus={e => e.target.style.borderColor = '#0052cc'}
-                            onBlur={e => e.target.style.borderColor = '#dfe1e6'}
-                          />
-                        </div>
-                      )
-                    })}
-                    {accMsg && <div style={{ fontSize: 12, color: accMsg.type === 'ok' ? '#36b37e' : '#de350b', marginBottom: 10, background: accMsg.type === 'ok' ? '#e3fcef' : '#ffebe6', padding: '6px 10px', borderRadius: 4 }}>{accMsg.text}</div>}
-                    <button onClick={handleSavePassword} disabled={accSaving || !accCurPw || !accNewPw || !accConfirmPw}
-                      style={{ width: '100%', padding: '8px 0', background: '#0052cc', color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: accSaving ? 0.7 : 1 }}>
-                      {accSaving ? 'Đang lưu...' : 'Đổi mật khẩu'}
-                    </button>
-                  </>
-                )}
-              </div>
-
+              {/* Settings */}
+              <button
+                onClick={() => { setTab('account-settings'); setShowAccountMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#172b4d', textAlign: 'left' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f4f5f7')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M3.2 12.8l1.4-1.4M11.4 4.6l1.4-1.4"/></svg>
+                Account settings
+              </button>
               {/* Logout */}
-              <div style={{ borderTop: '1px solid #dfe1e6', padding: '10px 20px' }}>
-                <button onClick={handleLogout}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: '#de350b', fontSize: 13, fontWeight: 500, cursor: 'pointer', padding: 0 }}>
-                  <span style={{ fontSize: 16 }}>↩</span> Đăng xuất
-                </button>
-              </div>
+              <button
+                onClick={handleLogout}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', borderTop: '1px solid #dfe1e6', cursor: 'pointer', fontSize: 13, color: '#de350b', textAlign: 'left' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#fff4f3')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3M10 11l4-4-4-4M14 8H6"/></svg>
+                Đăng xuất
+              </button>
             </div>
           )}
         </div>
@@ -687,6 +588,13 @@ export default function App() {
                 <div style={{ height: 'calc(100vh - 88px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <KnowledgeBase activeProjectId={activeProjectId} />
                 </div>
+              )}
+              {tab === 'account-settings' && (
+                <AccountSettingsPage
+                  currentUser={currentUser}
+                  onUserUpdate={setCurrentUser}
+                  onBack={() => setTab('board')}
+                />
               )}
               {tab === 'settings' && (
                 <div style={{ padding: 24, overflowY: 'auto', height: '100%' }}>

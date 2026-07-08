@@ -200,8 +200,13 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
 
   useEffect(() => { load() }, [load])
 
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   const uploadFile = async (file: File) => {
     setUploading(true)
+    setUploadError(null)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 90_000)
     try {
       const token = localStorage.getItem('auth_token')
       const form = new FormData()
@@ -212,15 +217,25 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
+        signal: controller.signal,
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }))
-        alert(`Upload failed: ${err.detail}`)
+        setUploadError(`Upload failed: ${err.detail}`)
         return
       }
       const doc: KbDoc = await res.json()
       setDocs(prev => [doc, ...prev])
-    } finally { setUploading(false) }
+    } catch (e: any) {
+      if (e.name === 'AbortError') {
+        setUploadError('Upload timeout — backend quá chậm, thử lại sau ít phút')
+      } else {
+        setUploadError(`Lỗi kết nối: ${e.message}`)
+      }
+    } finally {
+      clearTimeout(timer)
+      setUploading(false)
+    }
   }
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,6 +303,13 @@ function CollectionDetail({ collection, onBack }: { collection: KbCollection; on
           </button>
           <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.html,.png,.jpg,.jpeg,.gif,.xlsx,.pptx" style={{ display: 'none' }} onChange={handleFiles} />
         </div>
+
+        {uploadError && (
+          <div style={{ marginTop: 8, padding: '8px 14px', background: '#ffebe6', border: '1px solid #ffbdad', borderRadius: 4, fontSize: 13, color: '#bf2600', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span>{uploadError}</span>
+            <button onClick={() => setUploadError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bf2600', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+        )}
 
         {/* Meta */}
         <div style={{ display: 'flex', gap: 24, marginTop: 10, fontSize: 12, color: '#6b778c' }}>

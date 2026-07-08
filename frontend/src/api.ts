@@ -35,6 +35,9 @@ export const authLogin = (email: string, password: string): Promise<AuthToken> =
 
 export const authMe = (): Promise<AuthUser> => request('/auth/me')
 
+export const updateMe = (data: { name?: string; current_password?: string; new_password?: string }): Promise<AuthUser> =>
+  request('/auth/me', { method: 'PATCH', body: JSON.stringify(data) })
+
 // ── Members ──
 export interface Member { id: number; user_id: number; project_id: number; role: string; email: string; name: string; created_at: string }
 

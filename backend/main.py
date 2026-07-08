@@ -179,6 +179,25 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
 def me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
+class AccountUpdate(BaseModel):
+    name: Optional[str] = None
+    current_password: Optional[str] = None
+    new_password: Optional[str] = None
+
+@app.patch("/auth/me", response_model=schemas.UserOut)
+def update_me(body: AccountUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if body.new_password:
+        if not body.current_password:
+            raise HTTPException(status_code=400, detail="Current password required")
+        if not verify_password(body.current_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Current password incorrect")
+        current_user.password_hash = hash_password(body.new_password)
+    if body.name and body.name.strip():
+        current_user.name = body.name.strip()
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
 # ── Tasks (require auth) ──
 
 @app.get("/tasks", response_model=List[schemas.TaskOut])

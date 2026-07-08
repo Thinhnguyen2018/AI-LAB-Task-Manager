@@ -155,7 +155,7 @@ def health():
     return {"status": "ok"}
 
 @app.get("/kb/pdf-proxy")
-async def pdf_proxy(url: str, current_user: models.User = Depends(get_current_user)):
+async def pdf_proxy(url: str):
     from fastapi.responses import StreamingResponse
     import httpx
     async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:

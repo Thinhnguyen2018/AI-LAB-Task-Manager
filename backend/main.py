@@ -397,7 +397,7 @@ async def upload_kb_doc(
         raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}")
 
     # ── Upload to Cloudinary ──
-    resource_type = "image" if ext in ("png", "jpg", "jpeg", "gif") else "raw"
+    resource_type = "image" if ext in ("png", "jpg", "jpeg", "gif") else "auto"
     try:
         upload_result = cloudinary.uploader.upload(
             raw,

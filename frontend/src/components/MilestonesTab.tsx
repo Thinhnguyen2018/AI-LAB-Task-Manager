@@ -3,6 +3,7 @@ import { ReleaseNote, ProjectMilestone } from '../types'
 import {
   getReleaseNotes, createReleaseNote, updateReleaseNote, deleteReleaseNote,
   getProjectMilestones, createProjectMilestone, updateProjectMilestone, deleteProjectMilestone,
+  aiParseRelease,
 } from '../api'
 
 interface Props {
@@ -80,10 +81,14 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
     ]).then(([r, m]) => { setReleases(r); setMilestones(m) }).finally(() => setLoading(false))
   }, [projectId, boardId])
 
-  // ── Markdown import ──
+  // ── Import (file + AI text) ──
   const [importing, setImporting] = useState(false)
   const [importPreview, setImportPreview] = useState<ReleaseFormData[]>([])
   const [showImportModal, setShowImportModal] = useState(false)
+  const [importMode, setImportMode] = useState<'file' | 'ai'>('file')
+  const [aiText, setAiText] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const parseReleaseMarkdown = (text: string): ReleaseFormData[] => {
     const results: ReleaseFormData[] = []
@@ -139,11 +144,12 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
     reader.onload = ev => {
       const text = ev.target?.result as string
       const parsed = parseReleaseMarkdown(text)
+      setImportMode('file'); setAiText(''); setAiError('')
       setImportPreview(parsed)
       setShowImportModal(true)
     }
     reader.readAsText(file)
-    e.target.value = '' // reset so same file can be re-selected
+    e.target.value = ''
   }
 
   const confirmImport = async () => {
@@ -162,6 +168,31 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
     } finally {
       setImporting(false)
     }
+  }
+
+  const handleAiParse = async () => {
+    if (!aiText.trim()) return
+    setAiLoading(true); setAiError('')
+    try {
+      const { releases } = await aiParseRelease(aiText)
+      const mapped: ReleaseFormData[] = releases.map(r => ({
+        version: r.version ?? '',
+        title: r.title ?? '',
+        date: r.date ?? '',
+        description: r.description ?? '',
+        changes: Array.isArray(r.changes) ? r.changes.join('\n') : '',
+      }))
+      setImportPreview(mapped)
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : 'AI parse thất bại, thử lại nhé')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const openImportModal = (mode: 'file' | 'ai') => {
+    setImportMode(mode); setImportPreview([]); setAiText(''); setAiError('')
+    setShowImportModal(true)
   }
 
   // ── Release handlers ──
@@ -249,6 +280,7 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
                 ↑ Import .md
                 <input type="file" accept=".md,.txt" style={{ display: 'none' }} onChange={handleImportFile} />
               </label>
+              <button style={btnSecondary} onClick={() => openImportModal('ai')}>✨ Parse bằng AI</button>
               <button style={btnPrimary} onClick={openNewRelease}>+ New Release</button>
             </div>
           </div>
@@ -465,43 +497,76 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
         </div>
       )}
 
-      {/* ── IMPORT PREVIEW MODAL ── */}
+      {/* ── IMPORT MODAL (file preview + AI text input) ── */}
       {showImportModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(9,30,66,0.54)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setShowImportModal(false)}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 600, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
+          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 640, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: 16 }}
             onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#172b4d' }}>
-              Import Release Notes
+
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#172b4d' }}>
+              {importMode === 'ai' ? '✨ Parse Release Notes bằng AI' : 'Import Release Notes từ file'}
             </h3>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#42526e' }}>
-              Tìm thấy <strong>{importPreview.length}</strong> release{importPreview.length !== 1 ? 's' : ''} trong file. Xem lại trước khi import:
-            </p>
-            {importPreview.length === 0 && (
-              <p style={{ color: '#de350b', fontSize: 13 }}>Không parse được release nào. Hãy kiểm tra định dạng file (mỗi release bắt đầu bằng <code>## v1.0.0</code>).</p>
+
+            {/* AI text input */}
+            {importMode === 'ai' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#172b4d' }}>
+                  DÁN TEXT VÀO ĐÂY <span style={{ fontWeight: 400, color: '#6b7280' }}>(release notes, changelog, mô tả feature...)</span>
+                </label>
+                <textarea
+                  style={{ ...inputStyle({ resize: 'vertical', minHeight: 160, fontFamily: 'monospace', fontSize: 13 }) }}
+                  placeholder={'Ví dụ:\n\nVersion 1.2.0 - June 2026\nWe shipped semantic search, fixed login timeout, and improved indexing speed by 40%.\n\nVersion 1.1.0 - April 2026\n- Added document collections\n- Fixed PDF preview\n- New dashboard metrics'}
+                  value={aiText}
+                  onChange={e => { setAiText(e.target.value); setImportPreview([]); setAiError('') }}
+                />
+                {aiError && <p style={{ margin: 0, fontSize: 13, color: '#de350b' }}>{aiError}</p>}
+                <button
+                  style={{ ...btnPrimary, alignSelf: 'flex-start', opacity: aiLoading || !aiText.trim() ? 0.6 : 1 }}
+                  onClick={handleAiParse}
+                  disabled={aiLoading || !aiText.trim()}
+                >
+                  {aiLoading ? '⏳ Đang phân tích...' : '✨ Phân tích với AI'}
+                </button>
+              </div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {importPreview.map((r, i) => (
-                <div key={i} style={{ border: '1px solid #dfe1e6', borderRadius: 6, padding: 12 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ background: '#0052cc', color: '#fff', fontWeight: 700, fontSize: 12, padding: '2px 8px', borderRadius: 20 }}>{r.version || '(no version)'}</span>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: '#172b4d' }}>{r.title}</span>
-                    <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{r.date || '(no date)'}</span>
-                  </div>
-                  {r.description && <p style={{ margin: '0 0 6px', fontSize: 12, color: '#42526e' }}>{r.description}</p>}
-                  {r.changes && (
-                    <ul style={{ margin: 0, paddingLeft: 18 }}>
-                      {r.changes.split('\n').filter(Boolean).map((c, j) => (
-                        <li key={j} style={{ fontSize: 12, color: '#42526e' }}>{c}</li>
-                      ))}
-                    </ul>
-                  )}
+
+            {/* Preview */}
+            {importPreview.length > 0 && (
+              <>
+                <p style={{ margin: 0, fontSize: 13, color: '#42526e' }}>
+                  Tìm thấy <strong>{importPreview.length}</strong> release. Xem lại trước khi import:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {importPreview.map((r, i) => (
+                    <div key={i} style={{ border: '1px solid #dfe1e6', borderRadius: 6, padding: 12 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ background: '#0052cc', color: '#fff', fontWeight: 700, fontSize: 12, padding: '2px 8px', borderRadius: 20 }}>{r.version || '(no version)'}</span>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: '#172b4d' }}>{r.title}</span>
+                        <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{r.date || '(no date)'}</span>
+                      </div>
+                      {r.description && <p style={{ margin: '0 0 6px', fontSize: 12, color: '#42526e' }}>{r.description}</p>}
+                      {r.changes && (
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {r.changes.split('\n').filter(Boolean).map((c, j) => (
+                            <li key={j} style={{ fontSize: 12, color: '#42526e' }}>{c}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              </>
+            )}
+
+            {importMode === 'file' && importPreview.length === 0 && (
+              <p style={{ color: '#de350b', fontSize: 13, margin: 0 }}>Không parse được release nào. Kiểm tra định dạng file (mỗi release bắt đầu bằng <code>## v1.0.0</code>).</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', borderTop: '1px solid #f4f5f7', paddingTop: 14 }}>
               <button style={btnSecondary} onClick={() => setShowImportModal(false)}>Cancel</button>
-              <button style={btnPrimary} onClick={confirmImport} disabled={importing || importPreview.length === 0}>
+              <button style={{ ...btnPrimary, opacity: importing || importPreview.length === 0 ? 0.6 : 1 }}
+                onClick={confirmImport} disabled={importing || importPreview.length === 0}>
                 {importing ? 'Importing...' : `Import ${importPreview.length} release${importPreview.length !== 1 ? 's' : ''}`}
               </button>
             </div>

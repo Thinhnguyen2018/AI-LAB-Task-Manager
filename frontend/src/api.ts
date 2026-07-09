@@ -111,6 +111,10 @@ export const updateBoard = (id: number, name: string): Promise<Board> =>
 export const deleteBoard = (id: number): Promise<void> =>
   request(`/boards/${id}`, { method: 'DELETE' })
 
+// AI Parse
+export const aiParseRelease = (text: string): Promise<{ releases: Array<{ version: string; title: string; date: string; description: string; changes: string[] }> }> =>
+  request('/ai/parse-release', { method: 'POST', body: JSON.stringify({ text }) })
+
 // Release Notes
 export const getReleaseNotes = (projectId: number, boardId?: number): Promise<ReleaseNote[]> =>
   request(`/release-notes?project_id=${projectId}${boardId ? `&board_id=${boardId}` : ''}`)

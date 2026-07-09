@@ -619,6 +619,64 @@ def delete_project_milestone(ms_id: int, db: Session = Depends(get_db)):
     if not ms: raise HTTPException(status_code=404, detail="Not found")
     db.delete(ms); db.commit()
 
+## ── AI Parse ──────────────────────────────────────────────────────────────────
+
+class AiParseRequest(BaseModel):
+    text: str
+
+@app.post("/ai/parse-release")
+async def ai_parse_release(body: AiParseRequest):
+    api_key = os.getenv("LLM_API_KEY", "")
+    base_url = os.getenv("LLM_BASE_URL", "https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1")
+    model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="LLM_API_KEY not configured")
+
+    system_prompt = """You are a release notes parser. Extract release note entries from the given text.
+Return a JSON array of objects, each with these fields:
+- version (string, e.g. "v1.0.0")
+- title (string, short release title)
+- date (string, ISO format YYYY-MM-DD, empty string if not found)
+- description (string, optional summary paragraph)
+- changes (array of strings, each item is one change/feature/fix)
+
+If the text describes only one release, return an array with one item.
+Return ONLY the JSON array, no markdown, no explanation."""
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": body.text},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 2000,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        # Strip markdown code fences if present
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        import json as _json
+        releases = _json.loads(content)
+        if isinstance(releases, dict):
+            releases = [releases]
+        return {"releases": releases}
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e.response.text[:300]}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Parse failed: {str(e)[:200]}")
+
 ## ── Projects ─────────────────────────────────────────────────────────────────
 
 @app.get("/projects", response_model=List[schemas.ProjectOut])

@@ -274,7 +274,7 @@ export default function App() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f4f5f7' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f4f5f7' }}>
       {/* Top global header — Jira style */}
       <header style={{
         height: 48, background: '#0052cc', display: 'flex', alignItems: 'center',

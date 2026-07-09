@@ -268,18 +268,27 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
 
   return (
     <div style={{ padding: '0 24px 24px', maxWidth: 900, margin: '0 auto' }}>
-      {/* Tab switcher */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #dfe1e6', marginBottom: 24, marginTop: 8 }}>
-        {(['releases', 'milestones'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
-            color: activeTab === tab ? '#0052cc' : '#42526e',
-            borderBottom: activeTab === tab ? '2px solid #0052cc' : '2px solid transparent',
-            marginBottom: -2,
-          }}>
-            {tab === 'releases' ? '🏷 Release Notes' : '🎯 Milestones'}
-          </button>
-        ))}
+      {/* Tab switcher + shared actions */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '2px solid #dfe1e6', marginBottom: 24, marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 0 }}>
+          {(['releases', 'milestones'] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+              color: activeTab === tab ? '#0052cc' : '#42526e',
+              borderBottom: activeTab === tab ? '2px solid #0052cc' : '2px solid transparent',
+              marginBottom: -2,
+            }}>
+              {tab === 'releases' ? '🏷 Release Notes' : '🎯 Milestones'}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, paddingBottom: 8 }}>
+          <label style={{ ...btnSecondary, cursor: 'pointer', display: 'inline-block' }}>
+            ↑ Import .md
+            <input type="file" accept=".md,.txt" style={{ display: 'none' }} onChange={handleImportFile} />
+          </label>
+          <button style={btnSecondary} onClick={() => openImportModal('ai')}>✨ Parse bằng AI</button>
+        </div>
       </div>
 
       {loading && <p style={{ color: '#6b7280', textAlign: 'center' }}>Loading...</p>}
@@ -289,14 +298,7 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#172b4d', margin: 0 }}>Release Notes</h2>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <label style={{ ...btnSecondary, cursor: 'pointer', display: 'inline-block' }}>
-                ↑ Import .md
-                <input type="file" accept=".md,.txt" style={{ display: 'none' }} onChange={handleImportFile} />
-              </label>
-              <button style={btnSecondary} onClick={() => openImportModal('ai')}>✨ Parse bằng AI</button>
-              <button style={btnPrimary} onClick={openNewRelease}>+ New Release</button>
-            </div>
+            <button style={btnPrimary} onClick={openNewRelease}>+ New Release</button>
           </div>
 
           {releases.length === 0 && (

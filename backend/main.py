@@ -632,16 +632,21 @@ async def ai_parse_release(body: AiParseRequest):
     if not api_key:
         raise HTTPException(status_code=503, detail="GREENNODE_API_KEY not configured")
 
-    system_prompt = """You are a release notes parser. Extract release note entries from the given text.
-Return a JSON array of objects, each with these fields:
-- version (string, e.g. "v1.0.0")
-- title (string, short release title)
-- date (string, ISO format YYYY-MM-DD, empty string if not found)
-- description (string, optional summary paragraph)
-- changes (array of strings, each item is one change/feature/fix)
+    system_prompt = """You are a release notes parser. Extract release note entries from the given text (which may be in Vietnamese or English).
+Return ONLY a raw JSON array — no markdown, no code fences, no explanation text before or after.
 
-If the text describes only one release, return an array with one item.
-Return ONLY the JSON array, no markdown, no explanation."""
+Each object in the array must have:
+- "version": string (e.g. "v1.0.0", or derive from date like "09/2026" -> "2026-09", or use "v1.0" if unclear)
+- "title": string (short release title, translate to English if needed)
+- "date": string (ISO format YYYY-MM-DD if possible, or "YYYY-MM" if only month/year, or "" if not found)
+- "description": string (summary paragraph, can be empty string)
+- "changes": array of strings (each bullet point / feature / fix as one item)
+
+Example output format:
+[{"version":"v1.0.0","title":"Search Engine Launch","date":"2026-09-01","description":"","changes":["Semantic search for documents","Image search support"]}]
+
+If the text describes only one release or milestone, return an array with one item.
+Output ONLY the JSON array. Nothing else."""
 
     payload = {
         "model": model,
@@ -664,20 +669,40 @@ Return ONLY the JSON array, no markdown, no explanation."""
             )
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"].strip()
-        # Strip markdown code fences if present
-        if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-        import json as _json
-        releases = _json.loads(content)
-        if isinstance(releases, dict):
-            releases = [releases]
-        return {"releases": releases}
+
+        import json as _json, re as _re
+
+        # Try to extract JSON array or object from anywhere in the response
+        def extract_json(text: str):
+            # Strip ```json ... ``` fences
+            text = _re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
+            # Try parse directly
+            try:
+                return _json.loads(text)
+            except Exception:
+                pass
+            # Find first [...] or {...}
+            for pattern in (r"\[.*\]", r"\{.*\}"):
+                m = _re.search(pattern, text, _re.DOTALL)
+                if m:
+                    try:
+                        return _json.loads(m.group())
+                    except Exception:
+                        pass
+            return None
+
+        result = extract_json(content)
+        if result is None:
+            raise HTTPException(status_code=502, detail=f"AI không trả về JSON hợp lệ. Response: {content[:400]}")
+        if isinstance(result, dict):
+            result = [result]
+        return {"releases": result}
+    except HTTPException:
+        raise
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e.response.text[:300]}")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Parse failed: {str(e)[:200]}")
+        raise HTTPException(status_code=502, detail=f"Parse failed: {str(e)[:300]}")
 
 ## ── Projects ─────────────────────────────────────────────────────────────────
 

@@ -646,7 +646,7 @@ Return ONLY the JSON array, no markdown, no explanation."""
     payload = {
         "model": model,
         "messages": [
-            {"role": "assistant", "content": system_prompt},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": body.text},
         ],
         "temperature": 0.1,

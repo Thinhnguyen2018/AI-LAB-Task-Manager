@@ -112,7 +112,10 @@ export const deleteBoard = (id: number): Promise<void> =>
   request(`/boards/${id}`, { method: 'DELETE' })
 
 // AI Parse
-export const aiParseRelease = (text: string): Promise<{ releases: Array<{ version: string; title: string; date: string; description: string; changes: string[] }> }> =>
+export const aiParseRelease = (text: string): Promise<{
+  releases: Array<{ version: string; title: string; date: string; description: string; changes: string[] }>;
+  milestones: Array<{ name: string; target_date: string; description: string; goals: string[]; status: string }>;
+}> =>
   request('/ai/parse-release', { method: 'POST', body: JSON.stringify({ text }) })
 
 // Release Notes

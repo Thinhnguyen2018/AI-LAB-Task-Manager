@@ -84,6 +84,7 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
   // ── Import (file + AI text) ──
   const [importing, setImporting] = useState(false)
   const [importPreview, setImportPreview] = useState<ReleaseFormData[]>([])
+  const [importMilestonePreview, setImportMilestonePreview] = useState<MilestoneFormData[]>([])
   const [showImportModal, setShowImportModal] = useState(false)
   const [importMode, setImportMode] = useState<'file' | 'ai'>('file')
   const [aiText, setAiText] = useState('')
@@ -155,15 +156,22 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
   const confirmImport = async () => {
     setImporting(true)
     try {
-      const created = await Promise.all(
-        importPreview.map(r => createReleaseNote({
+      const [createdReleases, createdMilestones] = await Promise.all([
+        Promise.all(importPreview.map(r => createReleaseNote({
           version: r.version, title: r.title, date: r.date,
           description: r.description,
           changes: r.changes.split('\n').map(s => s.trim()).filter(Boolean),
           project_id: projectId, board_id: boardId,
-        }))
-      )
-      setReleases(rs => [...created, ...rs])
+        }))),
+        Promise.all(importMilestonePreview.map(m => createProjectMilestone({
+          name: m.name, target_date: m.target_date, description: m.description,
+          goals: m.goals.split('\n').map(s => s.trim()).filter(Boolean),
+          status: m.status as ProjectMilestone['status'],
+          project_id: projectId, board_id: boardId,
+        }))),
+      ])
+      if (createdReleases.length) setReleases(rs => [...createdReleases, ...rs])
+      if (createdMilestones.length) setMilestones(ms => [...ms, ...createdMilestones].sort((a, b) => a.target_date.localeCompare(b.target_date)))
       setShowImportModal(false)
     } finally {
       setImporting(false)
@@ -174,15 +182,21 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
     if (!aiText.trim()) return
     setAiLoading(true); setAiError('')
     try {
-      const { releases } = await aiParseRelease(aiText)
-      const mapped: ReleaseFormData[] = releases.map(r => ({
+      const { releases, milestones } = await aiParseRelease(aiText)
+      setImportPreview(releases.map(r => ({
         version: r.version ?? '',
         title: r.title ?? '',
         date: r.date ?? '',
         description: r.description ?? '',
         changes: Array.isArray(r.changes) ? r.changes.join('\n') : '',
-      }))
-      setImportPreview(mapped)
+      })))
+      setImportMilestonePreview(milestones.map(m => ({
+        name: m.name ?? '',
+        target_date: m.target_date ?? '',
+        description: m.description ?? '',
+        goals: Array.isArray(m.goals) ? m.goals.join('\n') : '',
+        status: m.status ?? 'upcoming',
+      })))
     } catch (e: unknown) {
       setAiError(e instanceof Error ? e.message : 'AI parse thất bại, thử lại nhé')
     } finally {
@@ -191,7 +205,7 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
   }
 
   const openImportModal = (mode: 'file' | 'ai') => {
-    setImportMode(mode); setImportPreview([]); setAiText(''); setAiError('')
+    setImportMode(mode); setImportPreview([]); setImportMilestonePreview([]); setAiText(''); setAiError('')
     setShowImportModal(true)
   }
 
@@ -532,31 +546,62 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
             )}
 
             {/* Preview */}
-            {importPreview.length > 0 && (
-              <>
+            {(importPreview.length > 0 || importMilestonePreview.length > 0) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <p style={{ margin: 0, fontSize: 13, color: '#42526e' }}>
-                  Tìm thấy <strong>{importPreview.length}</strong> release. Xem lại trước khi import:
+                  Tìm thấy <strong>{importPreview.length} release</strong> và <strong>{importMilestonePreview.length} milestone</strong>. Xem lại trước khi import:
                 </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {importPreview.map((r, i) => (
-                    <div key={i} style={{ border: '1px solid #dfe1e6', borderRadius: 6, padding: 12 }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ background: '#0052cc', color: '#fff', fontWeight: 700, fontSize: 12, padding: '2px 8px', borderRadius: 20 }}>{r.version || '(no version)'}</span>
-                        <span style={{ fontWeight: 600, fontSize: 13, color: '#172b4d' }}>{r.title}</span>
-                        <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{r.date || '(no date)'}</span>
-                      </div>
-                      {r.description && <p style={{ margin: '0 0 6px', fontSize: 12, color: '#42526e' }}>{r.description}</p>}
-                      {r.changes && (
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {r.changes.split('\n').filter(Boolean).map((c, j) => (
-                            <li key={j} style={{ fontSize: 12, color: '#42526e' }}>{c}</li>
-                          ))}
-                        </ul>
-                      )}
+
+                {importPreview.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0052cc', marginBottom: 8 }}>🏷 RELEASES ({importPreview.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {importPreview.map((r, i) => (
+                        <div key={i} style={{ border: '1px solid #dfe1e6', borderRadius: 6, padding: 12 }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ background: '#0052cc', color: '#fff', fontWeight: 700, fontSize: 12, padding: '2px 8px', borderRadius: 20 }}>{r.version || '(no version)'}</span>
+                            <span style={{ fontWeight: 600, fontSize: 13, color: '#172b4d' }}>{r.title}</span>
+                            <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{r.date || '(no date)'}</span>
+                          </div>
+                          {r.description && <p style={{ margin: '0 0 6px', fontSize: 12, color: '#42526e' }}>{r.description}</p>}
+                          {r.changes && (
+                            <ul style={{ margin: 0, paddingLeft: 18 }}>
+                              {r.changes.split('\n').filter(Boolean).map((c, j) => (
+                                <li key={j} style={{ fontSize: 12, color: '#42526e' }}>{c}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </>
+                  </div>
+                )}
+
+                {importMilestonePreview.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#d97706', marginBottom: 8 }}>🎯 MILESTONES ({importMilestonePreview.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {importMilestonePreview.map((m, i) => (
+                        <div key={i} style={{ border: '1px solid #fde68a', borderRadius: 6, padding: 12, background: '#fffdf5' }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 16 }}>🎯</span>
+                            <span style={{ fontWeight: 600, fontSize: 13, color: '#172b4d' }}>{m.name}</span>
+                            <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{m.target_date || '(no date)'}</span>
+                          </div>
+                          {m.description && <p style={{ margin: '0 0 6px', fontSize: 12, color: '#42526e' }}>{m.description}</p>}
+                          {m.goals && (
+                            <ul style={{ margin: 0, paddingLeft: 18 }}>
+                              {m.goals.split('\n').filter(Boolean).map((g, j) => (
+                                <li key={j} style={{ fontSize: 12, color: '#42526e' }}>{g}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {importMode === 'file' && importPreview.length === 0 && (
@@ -565,10 +610,15 @@ export default function MilestonesTab({ projectId, boardId }: Props) {
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', borderTop: '1px solid #f4f5f7', paddingTop: 14 }}>
               <button style={btnSecondary} onClick={() => setShowImportModal(false)}>Cancel</button>
-              <button style={{ ...btnPrimary, opacity: importing || importPreview.length === 0 ? 0.6 : 1 }}
-                onClick={confirmImport} disabled={importing || importPreview.length === 0}>
-                {importing ? 'Importing...' : `Import ${importPreview.length} release${importPreview.length !== 1 ? 's' : ''}`}
-              </button>
+              {(() => {
+                const total = importPreview.length + importMilestonePreview.length
+                return (
+                  <button style={{ ...btnPrimary, opacity: importing || total === 0 ? 0.6 : 1 }}
+                    onClick={confirmImport} disabled={importing || total === 0}>
+                    {importing ? 'Importing...' : `Import ${total} item${total !== 1 ? 's' : ''}`}
+                  </button>
+                )
+              })()}
             </div>
           </div>
         </div>

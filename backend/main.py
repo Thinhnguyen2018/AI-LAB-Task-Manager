@@ -632,21 +632,39 @@ async def ai_parse_release(body: AiParseRequest):
     if not api_key:
         raise HTTPException(status_code=503, detail="GREENNODE_API_KEY not configured")
 
-    system_prompt = """You are a release notes parser. Extract release note entries from the given text (which may be in Vietnamese or English).
-Return ONLY a raw JSON array — no markdown, no code fences, no explanation text before or after.
+    system_prompt = """You are a release notes and milestone parser. Analyze the given text (Vietnamese or English) and classify each item as either a RELEASE or a MILESTONE.
 
-Each object in the array must have:
-- "version": string (e.g. "v1.0.0", or derive from date like "09/2026" -> "2026-09", or use "v1.0" if unclear)
-- "title": string (short release title, translate to English if needed)
-- "date": string (ISO format YYYY-MM-DD if possible, or "YYYY-MM" if only month/year, or "" if not found)
-- "description": string (summary paragraph, can be empty string)
-- "changes": array of strings (each bullet point / feature / fix as one item)
+RELEASE = a version that has already been shipped/deployed (has a version number like v1.0.0, v1.1.0, etc.)
+MILESTONE = a future goal or planned feature (has a target date but no version number, or is described as a plan/goal)
 
-Example output format:
-[{"version":"v1.0.0","title":"Search Engine Launch","date":"2026-09-01","description":"","changes":["Semantic search for documents","Image search support"]}]
+Return ONLY a raw JSON object with two arrays — no markdown, no code fences, no explanation:
 
-If the text describes only one release or milestone, return an array with one item.
-Output ONLY the JSON array. Nothing else."""
+{
+  "releases": [
+    {
+      "version": "v1.0.0",
+      "title": "short title",
+      "date": "YYYY-MM-DD or YYYY-MM or empty string",
+      "description": "summary paragraph or empty string",
+      "changes": ["change 1", "change 2"]
+    }
+  ],
+  "milestones": [
+    {
+      "name": "milestone name",
+      "target_date": "YYYY-MM-DD or YYYY-MM or empty string",
+      "description": "summary paragraph or empty string",
+      "goals": ["goal 1", "goal 2"],
+      "status": "upcoming"
+    }
+  ]
+}
+
+Rules:
+- Items with version numbers (v1.x, 1.x.x) → releases
+- Items with only a future date/quarter and no version → milestones
+- If unsure, prefer milestone for future-dated items, release for past-dated items
+- Output ONLY the JSON object. Nothing else."""
 
     payload = {
         "model": model,
@@ -694,9 +712,13 @@ Output ONLY the JSON array. Nothing else."""
         result = extract_json(content)
         if result is None:
             raise HTTPException(status_code=502, detail=f"AI không trả về JSON hợp lệ. Response: {content[:400]}")
-        if isinstance(result, dict):
-            result = [result]
-        return {"releases": result}
+        # Normalize: result may be {releases:[...], milestones:[...]} or a plain array (old format)
+        if isinstance(result, list):
+            result = {"releases": result, "milestones": []}
+        return {
+            "releases": result.get("releases", []),
+            "milestones": result.get("milestones", []),
+        }
     except HTTPException:
         raise
     except httpx.HTTPStatusError as e:

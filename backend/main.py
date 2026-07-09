@@ -646,11 +646,13 @@ Return ONLY the JSON array, no markdown, no explanation."""
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": system_prompt},
+            {"role": "assistant", "content": system_prompt},
             {"role": "user", "content": body.text},
         ],
         "temperature": 0.1,
         "max_tokens": 2000,
+        "top_p": 0.95,
+        "presence_penalty": 0,
     }
 
     try:

@@ -15,16 +15,19 @@ import cloudinary.uploader
 
 # ── Cloudinary config ──
 cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", "pwulrfvc"),
-    api_key=os.getenv("CLOUDINARY_API_KEY", "189474275442255"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET", "te5CNOWj2OiUbLnlLUv-_qC7zNk"),
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     secure=True,
 )
 import models, schemas
 from database import engine, get_db, Base
 
 # ── Auth helpers ──
-SECRET_KEY = os.getenv("JWT_SECRET", "changeme-dev-secret-key-32chars!!")
+SECRET_KEY = os.getenv("JWT_SECRET") or "changeme-dev-secret-key-32chars!!"
+if SECRET_KEY == "changeme-dev-secret-key-32chars!!":
+    import sys
+    print("WARNING: JWT_SECRET not set — using insecure default. Set JWT_SECRET env var in production.", file=sys.stderr)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -180,11 +183,13 @@ with engine.connect() as conn:
 
 app = FastAPI()
 
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "https://ai-lab-task-manager.vercel.app,http://localhost:5173,http://localhost:3000").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    allow_credentials=True,
 )
 
 @app.get("/health")
@@ -192,20 +197,19 @@ def health():
     return {"status": "ok"}
 
 @app.get("/kb/pdf-proxy")
-async def pdf_proxy(url: str):
+async def pdf_proxy(url: str, current_user: models.User = Depends(get_current_user)):
     from fastapi.responses import Response
-    import httpx
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not (parsed.hostname or "").endswith("cloudinary.com"):
+        raise HTTPException(status_code=400, detail="Only Cloudinary URLs are allowed")
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
             r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
         return Response(
             content=r.content,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": "inline",
-                "Access-Control-Allow-Origin": "*",
-                "Cache-Control": "public, max-age=3600",
-            },
+            headers={"Content-Disposition": "inline", "Cache-Control": "private, max-age=3600"},
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Proxy error: {str(e)}")
@@ -266,88 +270,84 @@ def get_tasks(db: Session = Depends(get_db), current_user: models.User = Depends
     return db.query(models.Task).filter(models.Task.project_id.in_(member_project_ids)).all()
 
 @app.post("/tasks", response_model=schemas.TaskOut)
-def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if task.project_id:
+        if not get_member_role(db, task.project_id, current_user.id):
+            raise HTTPException(status_code=403, detail="Not a member of this project")
     db_task = models.Task(**task.model_dump())
-    db.add(db_task)
-    db.commit()
-    db.refresh(db_task)
+    db.add(db_task); db.commit(); db.refresh(db_task)
     return db_task
 
 @app.patch("/tasks/{task_id}", response_model=schemas.TaskOut)
-def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(get_db)):
+def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
+    if db_task.project_id and not get_member_role(db, db_task.project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     for key, value in task.model_dump(exclude_unset=True).items():
         setattr(db_task, key, value)
-    db.commit()
-    db.refresh(db_task)
+    db.commit(); db.refresh(db_task)
     return db_task
 
 @app.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int, db: Session = Depends(get_db)):
+def delete_task(task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
-    db.delete(db_task)
-    db.commit()
+    if db_task.project_id and not get_member_role(db, db_task.project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this project")
+    db.delete(db_task); db.commit()
 
 @app.get("/tasks/{task_id}/comments", response_model=List[schemas.CommentOut])
-def get_comments(task_id: int, db: Session = Depends(get_db)):
+def get_comments(task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Comment).filter(models.Comment.task_id == task_id).order_by(models.Comment.created_at).all()
 
 @app.post("/tasks/{task_id}/comments", response_model=schemas.CommentOut)
-def create_comment(task_id: int, comment: schemas.CommentCreate, db: Session = Depends(get_db)):
+def create_comment(task_id: int, comment: schemas.CommentCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_comment = models.Comment(task_id=task_id, **comment.model_dump())
-    db.add(db_comment)
-    db.commit()
-    db.refresh(db_comment)
+    db.add(db_comment); db.commit(); db.refresh(db_comment)
     return db_comment
 
 @app.delete("/comments/{comment_id}", status_code=204)
-def delete_comment(comment_id: int, db: Session = Depends(get_db)):
+def delete_comment(comment_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
     if not db_comment:
         raise HTTPException(status_code=404, detail="Comment not found")
-    db.delete(db_comment)
-    db.commit()
+    db.delete(db_comment); db.commit()
 
 @app.get("/notes", response_model=List[schemas.NoteOut])
-def get_notes(db: Session = Depends(get_db)):
+def get_notes(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Note).order_by(models.Note.created_at.desc()).all()
 
 @app.post("/notes", response_model=schemas.NoteOut)
-def create_note(note: schemas.NoteCreate, db: Session = Depends(get_db)):
+def create_note(note: schemas.NoteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_note = models.Note(**note.model_dump())
-    db.add(db_note)
-    db.commit()
-    db.refresh(db_note)
+    db.add(db_note); db.commit(); db.refresh(db_note)
     return db_note
 
 @app.patch("/notes/{note_id}", response_model=schemas.NoteOut)
-def update_note(note_id: str, note: schemas.NoteUpdate, db: Session = Depends(get_db)):
+def update_note(note_id: str, note: schemas.NoteUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_note = db.query(models.Note).filter(models.Note.id == note_id).first()
     if not db_note:
         raise HTTPException(status_code=404, detail="Note not found")
     for key, value in note.model_dump(exclude_unset=True).items():
         setattr(db_note, key, value)
     db_note.updated_at = func.now()
-    db.commit()
-    db.refresh(db_note)
+    db.commit(); db.refresh(db_note)
     return db_note
 
 @app.delete("/notes/{note_id}", status_code=204)
-def delete_note(note_id: str, db: Session = Depends(get_db)):
+def delete_note(note_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_note = db.query(models.Note).filter(models.Note.id == note_id).first()
     if not db_note:
         raise HTTPException(status_code=404, detail="Note not found")
-    db.delete(db_note)
-    db.commit()
+    db.delete(db_note); db.commit()
 
 # ── KB Collections ──
 
 @app.get("/kb-collections", response_model=List[schemas.KbCollectionOut])
-def get_collections(project_id: int = None, db: Session = Depends(get_db)):
+def get_collections(project_id: int = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     from datetime import datetime as dt
     q = db.query(models.KbCollection)
     if project_id is not None:
@@ -368,7 +368,7 @@ def get_collections(project_id: int = None, db: Session = Depends(get_db)):
     return result
 
 @app.post("/kb-collections", response_model=schemas.KbCollectionOut)
-def create_collection(body: schemas.KbCollectionCreate, db: Session = Depends(get_db)):
+def create_collection(body: schemas.KbCollectionCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     from datetime import datetime as dt
     col_id = f"kb-{int(time.time() * 1000)}"
     now = dt.utcnow()
@@ -385,7 +385,7 @@ def create_collection(body: schemas.KbCollectionCreate, db: Session = Depends(ge
     )
 
 @app.patch("/kb-collections/{col_id}", response_model=schemas.KbCollectionOut)
-def update_collection(col_id: str, body: schemas.KbCollectionUpdate, db: Session = Depends(get_db)):
+def update_collection(col_id: str, body: schemas.KbCollectionUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     col = db.query(models.KbCollection).filter(models.KbCollection.id == col_id).first()
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
@@ -399,7 +399,7 @@ def update_collection(col_id: str, body: schemas.KbCollectionUpdate, db: Session
                                    updated_at=col.updated_at, file_count=count)
 
 @app.delete("/kb-collections/{col_id}", status_code=204)
-def delete_collection(col_id: str, db: Session = Depends(get_db)):
+def delete_collection(col_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     col = db.query(models.KbCollection).filter(models.KbCollection.id == col_id).first()
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
@@ -409,7 +409,7 @@ def delete_collection(col_id: str, db: Session = Depends(get_db)):
 
 
 @app.patch("/kb/{doc_id}", response_model=schemas.KbDocOut)
-def update_kb_doc(doc_id: str, doc: schemas.KbDocUpdate, db: Session = Depends(get_db)):
+def update_kb_doc(doc_id: str, doc: schemas.KbDocUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_doc = db.query(models.KbDoc).filter(models.KbDoc.id == doc_id).first()
     if not db_doc:
         raise HTTPException(status_code=404, detail="Doc not found")
@@ -421,7 +421,7 @@ def update_kb_doc(doc_id: str, doc: schemas.KbDocUpdate, db: Session = Depends(g
     return db_doc
 
 @app.delete("/kb/{doc_id}", status_code=204)
-def delete_kb_doc(doc_id: str, db: Session = Depends(get_db)):
+def delete_kb_doc(doc_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_doc = db.query(models.KbDoc).filter(models.KbDoc.id == doc_id).first()
     if not db_doc:
         raise HTTPException(status_code=404, detail="Doc not found")
@@ -429,7 +429,7 @@ def delete_kb_doc(doc_id: str, db: Session = Depends(get_db)):
     db.commit()
 
 @app.get("/kb", response_model=List[schemas.KbDocOut])
-def get_kb_docs_by_collection(collection_id: str = None, project_id: int = None, db: Session = Depends(get_db)):
+def get_kb_docs_by_collection(collection_id: str = None, project_id: int = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     q = db.query(models.KbDoc)
     if collection_id:
         q = q.filter(models.KbDoc.collection_id == collection_id)
@@ -443,7 +443,8 @@ async def upload_kb_doc(
     project_id: Optional[int] = Form(None),
     collection_id: Optional[str] = Form(None),
     category: str = Form("General"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     import io
     raw = await file.read()
@@ -502,37 +503,45 @@ async def upload_kb_doc(
 ## ── Boards ──────────────────────────────────────────────────────────────────
 
 @app.get("/boards", response_model=List[schemas.BoardOut])
-def get_boards(project_id: int, db: Session = Depends(get_db)):
+def get_boards(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if not get_member_role(db, project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     return db.query(models.Board).filter_by(project_id=project_id).order_by(models.Board.created_at).all()
 
 @app.post("/boards", response_model=schemas.BoardOut)
-def create_board(body: schemas.BoardCreate, db: Session = Depends(get_db)):
+def create_board(body: schemas.BoardCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if not get_member_role(db, body.project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     board = models.Board(name=body.name, project_id=body.project_id)
     db.add(board); db.commit(); db.refresh(board)
     return board
 
 @app.patch("/boards/{board_id}", response_model=schemas.BoardOut)
-def update_board(board_id: int, body: schemas.BoardUpdate, db: Session = Depends(get_db)):
+def update_board(board_id: int, body: schemas.BoardUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     board = db.query(models.Board).filter_by(id=board_id).first()
     if not board:
         raise HTTPException(status_code=404, detail="Board not found")
+    if not get_member_role(db, board.project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     if body.name:
         board.name = body.name
     db.commit(); db.refresh(board)
     return board
 
 @app.delete("/boards/{board_id}", status_code=204)
-def delete_board(board_id: int, db: Session = Depends(get_db)):
+def delete_board(board_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     board = db.query(models.Board).filter_by(id=board_id).first()
     if not board:
         raise HTTPException(status_code=404, detail="Board not found")
+    if not get_member_role(db, board.project_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     db.delete(board); db.commit()
 
 ## ── Release Notes ─────────────────────────────────────────────────────────────
 import json
 
 @app.get("/release-notes", response_model=List[schemas.ReleaseNoteOut])
-def get_release_notes(project_id: int, board_id: Optional[int] = None, db: Session = Depends(get_db)):
+def get_release_notes(project_id: int, board_id: Optional[int] = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     q = db.query(models.ReleaseNote).filter_by(project_id=project_id)
     if board_id is not None:
         q = q.filter_by(board_id=board_id)
@@ -544,7 +553,7 @@ def get_release_notes(project_id: int, board_id: Optional[int] = None, db: Sessi
     return rows
 
 @app.post("/release-notes", response_model=schemas.ReleaseNoteOut)
-def create_release_note(body: schemas.ReleaseNoteCreate, db: Session = Depends(get_db)):
+def create_release_note(body: schemas.ReleaseNoteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     rn = models.ReleaseNote(
         version=body.version, title=body.title, date=body.date,
         description=body.description, changes=json.dumps(body.changes),
@@ -555,7 +564,7 @@ def create_release_note(body: schemas.ReleaseNoteCreate, db: Session = Depends(g
     return rn
 
 @app.patch("/release-notes/{rn_id}", response_model=schemas.ReleaseNoteOut)
-def update_release_note(rn_id: int, body: schemas.ReleaseNoteUpdate, db: Session = Depends(get_db)):
+def update_release_note(rn_id: int, body: schemas.ReleaseNoteUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     rn = db.query(models.ReleaseNote).filter_by(id=rn_id).first()
     if not rn: raise HTTPException(status_code=404, detail="Not found")
     if body.version is not None: rn.version = body.version
@@ -569,7 +578,7 @@ def update_release_note(rn_id: int, body: schemas.ReleaseNoteUpdate, db: Session
     return rn
 
 @app.delete("/release-notes/{rn_id}", status_code=204)
-def delete_release_note(rn_id: int, db: Session = Depends(get_db)):
+def delete_release_note(rn_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     rn = db.query(models.ReleaseNote).filter_by(id=rn_id).first()
     if not rn: raise HTTPException(status_code=404, detail="Not found")
     db.delete(rn); db.commit()
@@ -577,7 +586,7 @@ def delete_release_note(rn_id: int, db: Session = Depends(get_db)):
 ## ── Project Milestones ────────────────────────────────────────────────────────
 
 @app.get("/project-milestones", response_model=List[schemas.ProjectMilestoneOut])
-def get_project_milestones(project_id: int, board_id: Optional[int] = None, db: Session = Depends(get_db)):
+def get_project_milestones(project_id: int, board_id: Optional[int] = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     q = db.query(models.ProjectMilestone).filter_by(project_id=project_id)
     if board_id is not None:
         q = q.filter_by(board_id=board_id)
@@ -589,7 +598,7 @@ def get_project_milestones(project_id: int, board_id: Optional[int] = None, db: 
     return rows
 
 @app.post("/project-milestones", response_model=schemas.ProjectMilestoneOut)
-def create_project_milestone(body: schemas.ProjectMilestoneCreate, db: Session = Depends(get_db)):
+def create_project_milestone(body: schemas.ProjectMilestoneCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     ms = models.ProjectMilestone(
         name=body.name, target_date=body.target_date, description=body.description,
         goals=json.dumps(body.goals), status=body.status,
@@ -600,7 +609,7 @@ def create_project_milestone(body: schemas.ProjectMilestoneCreate, db: Session =
     return ms
 
 @app.patch("/project-milestones/{ms_id}", response_model=schemas.ProjectMilestoneOut)
-def update_project_milestone(ms_id: int, body: schemas.ProjectMilestoneUpdate, db: Session = Depends(get_db)):
+def update_project_milestone(ms_id: int, body: schemas.ProjectMilestoneUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     ms = db.query(models.ProjectMilestone).filter_by(id=ms_id).first()
     if not ms: raise HTTPException(status_code=404, detail="Not found")
     if body.name is not None: ms.name = body.name
@@ -614,7 +623,7 @@ def update_project_milestone(ms_id: int, body: schemas.ProjectMilestoneUpdate, d
     return ms
 
 @app.delete("/project-milestones/{ms_id}", status_code=204)
-def delete_project_milestone(ms_id: int, db: Session = Depends(get_db)):
+def delete_project_milestone(ms_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     ms = db.query(models.ProjectMilestone).filter_by(id=ms_id).first()
     if not ms: raise HTTPException(status_code=404, detail="Not found")
     db.delete(ms); db.commit()
@@ -625,7 +634,7 @@ class AiParseRequest(BaseModel):
     text: str
 
 @app.post("/ai/parse-release")
-async def ai_parse_release(body: AiParseRequest):
+async def ai_parse_release(body: AiParseRequest, current_user: models.User = Depends(get_current_user)):
     api_key = os.getenv("GREENNODE_API_KEY", "") or os.getenv("LLM_API_KEY", "")
     base_url = os.getenv("LLM_BASE_URL", "https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1")
     model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5")
@@ -896,7 +905,7 @@ async def extract_tasks(req: ExtractRequest):
     return {"tasks": tasks}
 
 @app.post("/seed")
-def seed(db: Session = Depends(get_db)):
+def seed(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db.query(models.Task).delete()
     db.commit()
     tasks = [

@@ -626,11 +626,11 @@ class AiParseRequest(BaseModel):
 
 @app.post("/ai/parse-release")
 async def ai_parse_release(body: AiParseRequest):
-    api_key = os.getenv("LLM_API_KEY", "")
+    api_key = os.getenv("GREENNODE_API_KEY", "") or os.getenv("LLM_API_KEY", "")
     base_url = os.getenv("LLM_BASE_URL", "https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1")
-    model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5")
     if not api_key:
-        raise HTTPException(status_code=503, detail="LLM_API_KEY not configured")
+        raise HTTPException(status_code=503, detail="GREENNODE_API_KEY not configured")
 
     system_prompt = """You are a release notes parser. Extract release note entries from the given text.
 Return a JSON array of objects, each with these fields:

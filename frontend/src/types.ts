@@ -75,3 +75,29 @@ export interface KbDoc {
 
 export type TaskCreate = Omit<Task, 'id'>
 export type TaskUpdate = Partial<TaskCreate>
+
+export interface ReleaseNote {
+  id: number
+  version: string
+  title: string
+  date: string
+  description?: string
+  changes: string[]
+  project_id?: number
+  board_id?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectMilestone {
+  id: number
+  name: string
+  target_date: string
+  description?: string
+  goals: string[]
+  status: 'upcoming' | 'in_progress' | 'completed'
+  project_id?: number
+  board_id?: number
+  created_at: string
+  updated_at: string
+}

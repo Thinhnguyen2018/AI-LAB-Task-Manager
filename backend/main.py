@@ -148,6 +148,34 @@ with engine.connect() as conn:
             conn.execute(text(f"ALTER TABLE kb_docs ADD COLUMN IF NOT EXISTS {col} {typ}"))
         except Exception:
             pass
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS release_notes (
+            id SERIAL PRIMARY KEY,
+            version VARCHAR(20) NOT NULL,
+            title VARCHAR(200) NOT NULL,
+            date VARCHAR(20) NOT NULL,
+            description TEXT,
+            changes TEXT NOT NULL DEFAULT '[]',
+            project_id INTEGER,
+            board_id INTEGER,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS project_milestones (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(200) NOT NULL,
+            target_date VARCHAR(20) NOT NULL,
+            description TEXT,
+            goals TEXT NOT NULL DEFAULT '[]',
+            status VARCHAR(20) NOT NULL DEFAULT 'upcoming',
+            project_id INTEGER,
+            board_id INTEGER,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
     conn.commit()
 
 app = FastAPI()
@@ -499,6 +527,97 @@ def delete_board(board_id: int, db: Session = Depends(get_db)):
     if not board:
         raise HTTPException(status_code=404, detail="Board not found")
     db.delete(board); db.commit()
+
+## ── Release Notes ─────────────────────────────────────────────────────────────
+import json
+
+@app.get("/release-notes", response_model=List[schemas.ReleaseNoteOut])
+def get_release_notes(project_id: int, board_id: Optional[int] = None, db: Session = Depends(get_db)):
+    q = db.query(models.ReleaseNote).filter_by(project_id=project_id)
+    if board_id is not None:
+        q = q.filter_by(board_id=board_id)
+    rows = q.order_by(models.ReleaseNote.date.desc()).all()
+    for r in rows:
+        if isinstance(r.changes, str):
+            try: r.changes = json.loads(r.changes)
+            except: r.changes = []
+    return rows
+
+@app.post("/release-notes", response_model=schemas.ReleaseNoteOut)
+def create_release_note(body: schemas.ReleaseNoteCreate, db: Session = Depends(get_db)):
+    rn = models.ReleaseNote(
+        version=body.version, title=body.title, date=body.date,
+        description=body.description, changes=json.dumps(body.changes),
+        project_id=body.project_id, board_id=body.board_id
+    )
+    db.add(rn); db.commit(); db.refresh(rn)
+    rn.changes = body.changes
+    return rn
+
+@app.patch("/release-notes/{rn_id}", response_model=schemas.ReleaseNoteOut)
+def update_release_note(rn_id: int, body: schemas.ReleaseNoteUpdate, db: Session = Depends(get_db)):
+    rn = db.query(models.ReleaseNote).filter_by(id=rn_id).first()
+    if not rn: raise HTTPException(status_code=404, detail="Not found")
+    if body.version is not None: rn.version = body.version
+    if body.title is not None: rn.title = body.title
+    if body.date is not None: rn.date = body.date
+    if body.description is not None: rn.description = body.description
+    if body.changes is not None: rn.changes = json.dumps(body.changes)
+    db.commit(); db.refresh(rn)
+    try: rn.changes = json.loads(rn.changes)
+    except: rn.changes = []
+    return rn
+
+@app.delete("/release-notes/{rn_id}", status_code=204)
+def delete_release_note(rn_id: int, db: Session = Depends(get_db)):
+    rn = db.query(models.ReleaseNote).filter_by(id=rn_id).first()
+    if not rn: raise HTTPException(status_code=404, detail="Not found")
+    db.delete(rn); db.commit()
+
+## ── Project Milestones ────────────────────────────────────────────────────────
+
+@app.get("/project-milestones", response_model=List[schemas.ProjectMilestoneOut])
+def get_project_milestones(project_id: int, board_id: Optional[int] = None, db: Session = Depends(get_db)):
+    q = db.query(models.ProjectMilestone).filter_by(project_id=project_id)
+    if board_id is not None:
+        q = q.filter_by(board_id=board_id)
+    rows = q.order_by(models.ProjectMilestone.target_date).all()
+    for r in rows:
+        if isinstance(r.goals, str):
+            try: r.goals = json.loads(r.goals)
+            except: r.goals = []
+    return rows
+
+@app.post("/project-milestones", response_model=schemas.ProjectMilestoneOut)
+def create_project_milestone(body: schemas.ProjectMilestoneCreate, db: Session = Depends(get_db)):
+    ms = models.ProjectMilestone(
+        name=body.name, target_date=body.target_date, description=body.description,
+        goals=json.dumps(body.goals), status=body.status,
+        project_id=body.project_id, board_id=body.board_id
+    )
+    db.add(ms); db.commit(); db.refresh(ms)
+    ms.goals = body.goals
+    return ms
+
+@app.patch("/project-milestones/{ms_id}", response_model=schemas.ProjectMilestoneOut)
+def update_project_milestone(ms_id: int, body: schemas.ProjectMilestoneUpdate, db: Session = Depends(get_db)):
+    ms = db.query(models.ProjectMilestone).filter_by(id=ms_id).first()
+    if not ms: raise HTTPException(status_code=404, detail="Not found")
+    if body.name is not None: ms.name = body.name
+    if body.target_date is not None: ms.target_date = body.target_date
+    if body.description is not None: ms.description = body.description
+    if body.goals is not None: ms.goals = json.dumps(body.goals)
+    if body.status is not None: ms.status = body.status
+    db.commit(); db.refresh(ms)
+    try: ms.goals = json.loads(ms.goals)
+    except: ms.goals = []
+    return ms
+
+@app.delete("/project-milestones/{ms_id}", status_code=204)
+def delete_project_milestone(ms_id: int, db: Session = Depends(get_db)):
+    ms = db.query(models.ProjectMilestone).filter_by(id=ms_id).first()
+    if not ms: raise HTTPException(status_code=404, detail="Not found")
+    db.delete(ms); db.commit()
 
 ## ── Projects ─────────────────────────────────────────────────────────────────
 

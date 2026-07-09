@@ -643,12 +643,10 @@ export default function App() {
                 <BoardView tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} canEdit={isAdmin} />
               </div>
               <div style={{ display: tab === 'roadmap' ? 'block' : 'none', padding: 24 }}>
-                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} canEdit={isAdmin} projectModules={activeProject?.modules ?? []} />
+                <Roadmap tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} activeProjectId={activeProjectId} boardId={activeBoardId} canEdit={isAdmin} projectModules={activeProject?.modules ?? []} />
               </div>
-              {tab === 'milestones' && (
-                <div style={{ padding: 24 }}>
-                  <MilestonesTab tasks={filtered} onUpdate={handleUpdate} onDelete={handleDelete} onCreate={handleCreate} />
-                </div>
+              {tab === 'milestones' && activeProjectId && (
+                <MilestonesTab projectId={activeProjectId} boardId={activeBoardId ?? undefined} />
               )}
               {tab === 'dashboard' && (
                 <div style={{ padding: 24 }}>

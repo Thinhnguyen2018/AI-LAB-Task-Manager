@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react'
-import { Task, TaskCreate, TaskUpdate } from '../types'
+import { useState, useRef, useEffect } from 'react'
+import { Task, TaskCreate, TaskUpdate, ReleaseNote, ProjectMilestone } from '../types'
 import { moduleColor } from '../utils/moduleColor'
 import TaskModal from './TaskModal'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { getReleaseNotes, getProjectMilestones } from '../api'
 
 interface Props {
   tasks: Task[]
@@ -11,6 +12,7 @@ interface Props {
   onDelete: (id: number) => Promise<void>
   onCreate: (task: TaskCreate) => Promise<void>
   activeProjectId?: number | null
+  boardId?: number | null
   canEdit?: boolean
   projectModules?: string[]
 }
@@ -82,7 +84,7 @@ const QUARTERS_DEF = [
 ]
 const ALL_MONTHS = QUARTERS_DEF.flatMap(q => q.months.map((m, i) => ({ month: m, label: q.labels[i], quarter: q.key })))
 
-export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId, canEdit = true, projectModules = [] }: Props) {
+export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activeProjectId, boardId, canEdit = true, projectModules = [] }: Props) {
   const taskModules = Array.from(new Set(tasks.map(t => t.module).filter(Boolean)))
   const MODULES = Array.from(new Set([...projectModules, ...taskModules]))
   const [view, setView] = useState<ViewMode>('all')
@@ -90,7 +92,15 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
   const [creating, setCreating] = useState<Partial<{ quarter: string; month: number; week: number }> | null>(null)
   const tableRef = useRef<HTMLDivElement>(null)
   const [dragTaskId, setDragTaskId] = useState<number | null>(null)
-  const [dragOver, setDragOver] = useState<string | null>(null) // "mod:colKey"
+  const [dragOver, setDragOver] = useState<string | null>(null)
+  const [releases, setReleases] = useState<ReleaseNote[]>([])
+  const [milestones, setMilestones] = useState<ProjectMilestone[]>([])
+
+  useEffect(() => {
+    if (!activeProjectId) { setReleases([]); setMilestones([]); return }
+    getReleaseNotes(activeProjectId, boardId ?? undefined).then(setReleases).catch(() => setReleases([]))
+    getProjectMilestones(activeProjectId, boardId ?? undefined).then(setMilestones).catch(() => setMilestones([]))
+  }, [activeProjectId, boardId])
 
   // ── Column definitions per view ──
   type Col = { key: string; label: string; sub?: string; isToday?: boolean }
@@ -220,6 +230,17 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
     pdf.save('roadmap.pdf')
   }
 
+  // Get column key for a YYYY-MM-DD date string
+  const getColKeyForDate = (dateStr: string): string | null => {
+    if (!dateStr) return null
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return null
+    if (view === 'all' || view === 'quarter') return String(d.getMonth() + 1)
+    if (view === 'month') return String(getWeekNumber(d))
+    if (view === 'week') { const day = d.getDay() || 7; return String(day) }
+    return null
+  }
+
   const th: React.CSSProperties = {
     padding: '7px 10px', fontSize: 11, fontWeight: 600,
     color: '#6b7280', border: '1px solid #e5e7eb',
@@ -288,6 +309,59 @@ export default function Roadmap({ tasks, onUpdate, onDelete, onCreate, activePro
             </tr>
           </thead>
           <tbody>
+            {/* ── Release markers row ── */}
+            {releases.length > 0 && (
+              <tr>
+                <td style={{ padding: '6px 10px', border: '1px solid #e5e7eb', fontWeight: 700, fontSize: 11, color: '#0052cc', background: '#e9f2ff', whiteSpace: 'nowrap' }}>
+                  🏷 Releases
+                </td>
+                {columns.map(col => {
+                  const colReleases = releases.filter(r => getColKeyForDate(r.date) === col.key)
+                  return (
+                    <td key={col.key} style={{ padding: colReleases.length ? 4 : 6, border: '1px solid #e5e7eb', background: col.isToday ? '#f0fdf4' : '#f8faff', verticalAlign: 'top' }}>
+                      {colReleases.length === 0
+                        ? <div style={{ color: '#e5e7eb', fontSize: 14, textAlign: 'center' }}>—</div>
+                        : <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {colReleases.map(r => (
+                            <div key={r.id} style={{ background: '#0052cc', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {r.version}
+                            </div>
+                          ))}
+                        </div>
+                      }
+                    </td>
+                  )
+                })}
+              </tr>
+            )}
+            {/* ── Milestone markers row ── */}
+            {milestones.length > 0 && (
+              <tr>
+                <td style={{ padding: '6px 10px', border: '1px solid #e5e7eb', fontWeight: 700, fontSize: 11, color: '#d97706', background: '#fff7e6', whiteSpace: 'nowrap' }}>
+                  🎯 Milestones
+                </td>
+                {columns.map(col => {
+                  const colMs = milestones.filter(m => getColKeyForDate(m.target_date) === col.key)
+                  return (
+                    <td key={col.key} style={{ padding: colMs.length ? 4 : 6, border: '1px solid #e5e7eb', background: col.isToday ? '#f0fdf4' : '#fffdf5', verticalAlign: 'top' }}>
+                      {colMs.length === 0
+                        ? <div style={{ color: '#e5e7eb', fontSize: 14, textAlign: 'center' }}>—</div>
+                        : <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {colMs.map(m => (
+                            <div key={m.id} style={{
+                              background: m.status === 'completed' ? '#16a34a' : m.status === 'in_progress' ? '#d97706' : '#42526e',
+                              color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                            }}>
+                              🎯 {m.name}
+                            </div>
+                          ))}
+                        </div>
+                      }
+                    </td>
+                  )
+                })}
+              </tr>
+            )}
             {MODULES.map(mod => (
               <tr key={mod}>
                 <td style={{

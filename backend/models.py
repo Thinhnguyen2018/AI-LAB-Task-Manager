@@ -68,6 +68,32 @@ class KbDoc(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class ReleaseNote(Base):
+    __tablename__ = "release_notes"
+    id = Column(Integer, primary_key=True, index=True)
+    version = Column(String(20), nullable=False)
+    title = Column(String(200), nullable=False)
+    date = Column(String(20), nullable=False)
+    description = Column(Text, nullable=True)
+    changes = Column(Text, nullable=False, default="[]")
+    project_id = Column(Integer, nullable=True)
+    board_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class ProjectMilestone(Base):
+    __tablename__ = "project_milestones"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    target_date = Column(String(20), nullable=False)
+    description = Column(Text, nullable=True)
+    goals = Column(Text, nullable=False, default="[]")
+    status = Column(String(20), nullable=False, default="upcoming")
+    project_id = Column(Integer, nullable=True)
+    board_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 class Comment(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True)

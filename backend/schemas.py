@@ -188,3 +188,61 @@ class MemberInvite(BaseModel):
 
 class MemberUpdate(BaseModel):
     role: str
+
+class ReleaseNoteCreate(BaseModel):
+    version: str
+    title: str
+    date: str
+    description: Optional[str] = None
+    changes: list[str] = []
+    project_id: Optional[int] = None
+    board_id: Optional[int] = None
+
+class ReleaseNoteUpdate(BaseModel):
+    version: Optional[str] = None
+    title: Optional[str] = None
+    date: Optional[str] = None
+    description: Optional[str] = None
+    changes: Optional[list[str]] = None
+
+class ReleaseNoteOut(BaseModel):
+    id: int
+    version: str
+    title: str
+    date: str
+    description: Optional[str] = None
+    changes: list[str] = []
+    project_id: Optional[int] = None
+    board_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+class ProjectMilestoneCreate(BaseModel):
+    name: str
+    target_date: str
+    description: Optional[str] = None
+    goals: list[str] = []
+    status: str = "upcoming"
+    project_id: Optional[int] = None
+    board_id: Optional[int] = None
+
+class ProjectMilestoneUpdate(BaseModel):
+    name: Optional[str] = None
+    target_date: Optional[str] = None
+    description: Optional[str] = None
+    goals: Optional[list[str]] = None
+    status: Optional[str] = None
+
+class ProjectMilestoneOut(BaseModel):
+    id: int
+    name: str
+    target_date: str
+    description: Optional[str] = None
+    goals: list[str] = []
+    status: str
+    project_id: Optional[int] = None
+    board_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}

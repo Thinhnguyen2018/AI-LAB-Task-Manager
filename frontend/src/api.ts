@@ -1,4 +1,4 @@
-import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc, KbCollection, Board } from './types'
+import { Task, TaskCreate, TaskUpdate, Comment, Note, Project, KbDoc, KbCollection, Board, ReleaseNote, ProjectMilestone } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -110,6 +110,26 @@ export const updateBoard = (id: number, name: string): Promise<Board> =>
   request(`/boards/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
 export const deleteBoard = (id: number): Promise<void> =>
   request(`/boards/${id}`, { method: 'DELETE' })
+
+// Release Notes
+export const getReleaseNotes = (projectId: number, boardId?: number): Promise<ReleaseNote[]> =>
+  request(`/release-notes?project_id=${projectId}${boardId ? `&board_id=${boardId}` : ''}`)
+export const createReleaseNote = (data: Omit<ReleaseNote, 'id' | 'created_at' | 'updated_at'>): Promise<ReleaseNote> =>
+  request('/release-notes', { method: 'POST', body: JSON.stringify(data) })
+export const updateReleaseNote = (id: number, data: Partial<ReleaseNote>): Promise<ReleaseNote> =>
+  request(`/release-notes/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteReleaseNote = (id: number): Promise<void> =>
+  request(`/release-notes/${id}`, { method: 'DELETE' })
+
+// Project Milestones
+export const getProjectMilestones = (projectId: number, boardId?: number): Promise<ProjectMilestone[]> =>
+  request(`/project-milestones?project_id=${projectId}${boardId ? `&board_id=${boardId}` : ''}`)
+export const createProjectMilestone = (data: Omit<ProjectMilestone, 'id' | 'created_at' | 'updated_at'>): Promise<ProjectMilestone> =>
+  request('/project-milestones', { method: 'POST', body: JSON.stringify(data) })
+export const updateProjectMilestone = (id: number, data: Partial<ProjectMilestone>): Promise<ProjectMilestone> =>
+  request(`/project-milestones/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteProjectMilestone = (id: number): Promise<void> =>
+  request(`/project-milestones/${id}`, { method: 'DELETE' })
 
 export const getProjects = (): Promise<Project[]> => request('/projects')
 
